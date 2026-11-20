@@ -248,6 +248,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1px so
     <div class="row">
       <button class="btn primary" type="submit" id="authgo">Ingresar</button>
       <button class="btn" type="button" id="authswitch">Crear cuenta</button>
+      <button class="btn" type="button" id="authforgot">Olvidé mi contraseña</button>
       <button class="btn" type="button" id="authclose" hidden>Cerrar</button>
     </div>
     <p class="hint">Se ingresa con el mail y la contraseña. El nombre de usuario (3 a 20 caracteres: minúsculas, números, guion y guion bajo) es el que ven los demás en los turnos en los que te anotes. Tu mail solo lo ve el administrador. Las cuentas de colaborador necesitan la aprobación de un administrador antes de poder ingresar.</p>
@@ -548,6 +549,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1px so
     $("authgo").textContent = reg ? (memberReq ? "Enviar solicitud" : "Crear cuenta") : "Ingresar";
     $("authswitch").textContent = reg ? "Ya tengo cuenta" : "Crear cuenta";
     $("userwrap").hidden = !reg;
+    $("authforgot").hidden = reg;
     $("pass2wrap").hidden = !reg;
     $("authpass").setAttribute("autocomplete", reg ? "new-password" : "current-password");
     $("authclose").hidden = needLogin();
@@ -1617,6 +1619,15 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1px so
   $("authbox").addEventListener("submit", submitAuth);
   $("authswitch").onclick = function () { state.authMode = state.authMode === "login" ? "register" : "login"; $("autherr").textContent = ""; renderAuth(); };
   $("authclose").onclick = closeAuth;
+  $("authforgot").onclick = async function () {
+    var err = $("autherr"), email = $("authemail").value.trim().toLowerCase();
+    err.className = "err";
+    if (!state.auth) { err.textContent = state.dbIssue || "Todavía se está conectando. Probá de nuevo en unos segundos."; return; }
+    if (!EMAIL_RE.test(email)) { err.textContent = "Escribí arriba el mail de tu cuenta y tocá de nuevo."; return; }
+    try { await state.auth.sendPasswordResetEmail(email); } catch (e) {}
+    err.className = "hint";
+    err.textContent = "Si ese mail tiene una cuenta, te enviamos un link para elegir una contraseña nueva. Revisá también la carpeta de spam.";
+  };
   $("radd").onclick = addRoster;
   $("saverates").onclick = saveRates;
   $("liqprev").onclick = function () { var m = liqRange(), d = new Date(m.y, m.m - 1, 1); state.liqMonth = { y: d.getFullYear(), m: d.getMonth() }; renderLiq(); };
