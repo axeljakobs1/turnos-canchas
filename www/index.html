@@ -379,7 +379,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   // Días de la semana disponibles (0 = lunes ... 6 = domingo). Lo que no figura acá admite todos los días.
   var DIAS_PERMITIDOS = {
     viernes: { "*": [4] },
-    rutina: { s1: [0, 1, 2, 3, 4], s2: [5], s3: [4, 5] }   // Corrientes: lun a vie · España: sábados · Tucumán: vie y sáb · Las Cañas: todos
+    rutina: { s1: [0, 1, 2, 3, 4], s2: [3, 5], s3: [4, 5] }   // Corrientes: lun a vie · España: jueves y sábados · Tucumán: vie y sáb · Las Cañas: todos
   };
   function allowedDays(type, venue) {
     var t = DIAS_PERMITIDOS[type]; if (!t) return null;
