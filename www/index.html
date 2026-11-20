@@ -505,6 +505,8 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   function takenCount(s, att) { return (att[s.id] || []).length + manualOf(s).length; }
 
   function needLogin() { return state.authReady && !state.session; }
+  // Fixtures que solo pueden modificar (anotar y quitar gente) los administradores; el resto de las personas solo los ve.
+  var ADMIN_ONLY = ["viernes", "especiales"];
   function isFixture() { return !!typeObj(state.type); }
   function inSchedule() { return !needLogin() && !state.dbIssue && isFixture() && !!state.venue; }
 
@@ -737,8 +739,11 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     card.appendChild(h("div", { class: "count" }, h("span", {}, h("b", {}, String(n)), " de " + s.cap + " anotados"), h("span", {}, full ? "Completo" : left + (left === 1 ? " lugar" : " lugares"))));
 
     if (mine) card.appendChild(h("div", { class: "tag" }, "Estás anotado"));
-    var canAct = state.session && state.uid && state.canWrite !== false && !past;
-    if (canAct) {
+    var adminOnly = ADMIN_ONLY.indexOf(s.type) !== -1 && !state.admin;
+    var canAct = state.session && state.uid && state.canWrite !== false && !past && !adminOnly;
+    if (adminOnly && !past) {
+      card.appendChild(h("div", { class: "hint" }, "Este fixture lo arman solo los administradores."));
+    } else if (canAct) {
       if (mine) card.appendChild(h("button", { class: "btn", disabled: state.busy, onclick: function () { toggle(s); } }, "Salir del turno"));
       else if (full) card.appendChild(h("button", { class: "btn", disabled: true }, "Completo"));
       else card.appendChild(h("button", { class: "btn primary", disabled: state.busy, onclick: function () { toggle(s); } }, "Anotarme"));
@@ -1478,6 +1483,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   // ---- anotarse ----
   async function toggle(s) {
     if (!state.session || !state.uid || state.busy) return;
+    if (ADMIN_ONLY.indexOf(s.type) !== -1 && !state.admin) return;
     var me = state.session;
     var mydoc = state.signupDocs[state.uid] || {};
     var by = Object.assign({}, mydoc.byUser || {});
