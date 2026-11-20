@@ -367,6 +367,9 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
 <script>
 (function () {
   var SEDES = ["s1", "s2", "s3", "s4"];
+  // El fixture viernes no se hace en Corrientes (s1).
+  var SEDES_SIN = { viernes: ["s1"] };
+  function sedesFor(type) { return SEDES.filter(function (id) { return (SEDES_SIN[type] || []).indexOf(id) === -1; }); }
   var TYPES = [
     { id: "viernes", name: "Viernes", title: "Fixture viernes" },
     { id: "rutina", name: "Rutina", title: "Fixture rutina" },
@@ -613,7 +616,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
       box.hidden = false;
       box.appendChild(h("h2", {}, state.admin ? "Elegí la sede donde querés cargar turnos del " + typeTitle(state.type).toLowerCase() : "Elegí la sede"));
       var g2 = h("div", { class: "choices" });
-      SEDES.forEach(function (id) {
+      sedesFor(state.type).forEach(function (id) {
         var v = state.venues[id] || {};
         g2.appendChild(h("button", { class: "choice", onclick: function () { state.venue = id; state.confirmDel = null; state.editing = null; render(); } },
           h("span", { class: "cname" }, venueName(id)),
