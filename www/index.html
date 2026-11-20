@@ -1720,7 +1720,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   $("addslots").onclick = addSlots;
   $("copyweek").onclick = copyWeek;
   $("savevenue").onclick = saveVenue;
-  $("addrow").onclick = function () { $("trows").appendChild(buildRow("20:00", "21:00", 10)); syncRows(); };
+  $("addrow").onclick = function () { $("trows").appendChild(buildRow("20:00", "21:00", 1)); syncRows(); };
   $("authbox").addEventListener("submit", submitAuth);
   $("authswitch").onclick = function () { state.authMode = state.authMode === "login" ? "register" : "login"; $("autherr").textContent = ""; renderAuth(); };
   $("authclose").onclick = closeAuth;
@@ -1752,7 +1752,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     r.addEventListener("change", function () { state.authRole = r.value; $("autherr").textContent = ""; renderAuth(); });
   });
   buildDaysPick();
-  $("trows").appendChild(buildRow("19:00", "20:00", 10)); syncRows();
+  $("trows").appendChild(buildRow("19:00", "20:00", 1)); syncRows();
   render();
 
   // ---- datos en tiempo real (Firestore) ----
