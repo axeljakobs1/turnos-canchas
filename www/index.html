@@ -381,6 +381,9 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     viernes: { "*": [4] },
     rutina: { s1: [0, 1, 2, 3, 4], s2: [3, 5], s3: [4, 5] }   // Corrientes: lun a vie · España: jueves y sábados · Tucumán: vie y sáb · Las Cañas: todos
   };
+  // Cupo predeterminado al agregar turnos: viernes en España y Las Cañas 3, en Tucumán 2; el resto 1.
+  var CUPO_PRED = { viernes: { s2: 3, s4: 3, s3: 2 } };
+  function defaultCap(type, venue) { return (CUPO_PRED[type] || {})[venue] || 1; }
   function allowedDays(type, venue) {
     var t = DIAS_PERMITIDOS[type]; if (!t) return null;
     return t[venue] || t["*"] || null;
@@ -845,6 +848,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     var ok = allowedDays(state.type, state.venue), mode = state.type + "|" + state.venue;
     if (state.dpMode === mode) return;
     state.dpMode = mode;
+    $("trows").querySelectorAll('[data-k="cap"]').forEach(function (inp) { inp.value = String(defaultCap(state.type, state.venue)); });
     $("dayspick").querySelectorAll("label").forEach(function (lb, i) {
       lb.hidden = !!ok && ok.indexOf(i) === -1;
       lb.querySelector("input").checked = ok ? ok.indexOf(i) !== -1 : i < 5;
@@ -1720,7 +1724,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   $("addslots").onclick = addSlots;
   $("copyweek").onclick = copyWeek;
   $("savevenue").onclick = saveVenue;
-  $("addrow").onclick = function () { $("trows").appendChild(buildRow("20:00", "21:00", 1)); syncRows(); };
+  $("addrow").onclick = function () { $("trows").appendChild(buildRow("20:00", "21:00", defaultCap(state.type, state.venue))); syncRows(); };
   $("authbox").addEventListener("submit", submitAuth);
   $("authswitch").onclick = function () { state.authMode = state.authMode === "login" ? "register" : "login"; $("autherr").textContent = ""; renderAuth(); };
   $("authclose").onclick = closeAuth;
