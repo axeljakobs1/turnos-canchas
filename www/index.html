@@ -564,6 +564,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     $("authforgot").hidden = reg;
     $("pass2wrap").hidden = !reg;
     $("authpass").setAttribute("autocomplete", reg ? "new-password" : "current-password");
+    $("authemail").setAttribute("autocomplete", reg ? "email" : "username");
     $("authclose").hidden = needLogin();
     var ra = $("role-admin");
     ra.disabled = false;
@@ -647,6 +648,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
       h("button", { class: "btn sm", onclick: function () { $("accounts").scrollIntoView({ behavior: "smooth", block: "start" }); } }, "Ver solicitudes")));
     if (pushCanAsk()) box.appendChild(h("div", { class: "notice" }, "Activá los avisos para recibir la noche anterior (21:00) tus turnos del día siguiente. ",
       h("button", { class: "btn sm primary", onclick: enablePush }, "Activar avisos")));
+    if (state.offline) box.appendChild(h("div", { class: "notice warn" }, "Sin conexión: estás viendo los últimos turnos guardados. Los cambios se sincronizan cuando vuelva internet."));
     if (state.unreachable && !state.loaded) box.appendChild(h("div", { class: "notice warn" }, "Todavía no se pueden alcanzar los datos. Los turnos pueden estar desactualizados."));
     if (state.canWrite === false && !state.canEdit) box.appendChild(h("div", { class: "notice" }, "Estás viendo los turnos en modo lectura. Pedile a quien organiza que te dé acceso de colaborador para poder crear tu cuenta y anotarte."));
     else if (state.session && !state.uid) box.appendChild(h("div", { class: "notice" }, "Para anotarte tenés que iniciar sesión."));
@@ -1825,6 +1827,12 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     }
     firebase.initializeApp(cfg);
     state.auth = firebase.auth(); state.db = firebase.firestore();
+    // Recordar la sesión en este dispositivo y guardar los turnos para verlos sin internet.
+    try { state.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch (e) {}
+    try { state.db.enablePersistence({ synchronizeTabs: true }).catch(function () {}); } catch (e) {}
+    window.addEventListener("online", function () { state.offline = false; renderNotices(); });
+    window.addEventListener("offline", function () { state.offline = true; renderNotices(); });
+    state.offline = navigator.onLine === false;
     state.auth.onAuthStateChanged(async function (user) {
       if (state.authBusy) return;
       if (!user) { state.authReady = true; render(); return; }
