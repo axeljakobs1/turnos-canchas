@@ -9,13 +9,13 @@ exports.avisoTurnos = onSchedule({ schedule: "0 21 * * *", timeZone: "America/Ar
   const date = tomorrowIn("America/Argentina/Mendoza");
   const [slotsS, signS, venS] = await Promise.all([
     db.collection("slots").where("date", "==", date).get(),
-    db.collection("signups").get(),
+    db.collection("enrol").get(),
     db.collection("venues").get()
   ]);
   const slots = slotsS.docs.map((d) => Object.assign({ id: d.id }, d.data()));
-  const signups = {}; signS.docs.forEach((d) => { signups[d.id] = d.data(); });
+  const enrol = signS.docs.map((d) => d.data());
   const venues = {}; venS.docs.forEach((d) => { venues[d.id] = d.data(); });
-  const msgs = buildMessages(slots, signups, venues, date);
+  const msgs = buildMessages(slots, enrol, venues, date);
   for (const m of msgs) {
     const dev = await db.doc("devices/" + m.uid).get();
     const tokens = dev.exists ? (dev.data().tokens || []) : [];

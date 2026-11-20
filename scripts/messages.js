@@ -8,18 +8,18 @@ function tomorrowIn(tz, now) {
   return d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0");
 }
 
-// slots: [{id,type,venue,date,start,end}], signups: {uid:{byUser:{username:[slotIds]}}}, venues: {id:{name}}
+// slots: [{id,type,venue,date,start,end}], enrol: [{slotId, uid}], venues: {id:{name}}
 // devuelve [{uid, title, body}]
-function buildMessages(slots, signups, venues, date) {
+function buildMessages(slots, enrol, venues, date) {
   var byId = {};
   slots.forEach(function (s) { if (s.date === date) byId[s.id] = s; });
-  var out = [];
-  Object.keys(signups || {}).forEach(function (uid) {
-    var by = (signups[uid] || {}).byUser || {}, seen = {}, mine = [];
-    Object.keys(by).forEach(function (u) {
-      (Array.isArray(by[u]) ? by[u] : []).forEach(function (id) { if (byId[id] && !seen[id]) { seen[id] = 1; mine.push(byId[id]); } });
-    });
-    if (!mine.length) return;
+  var per = {}, out = [];
+  (enrol || []).forEach(function (e) {
+    var s = byId[e.slotId]; if (!s) return;
+    var l = (per[e.uid] = per[e.uid] || {}); l[s.id] = s;
+  });
+  Object.keys(per).forEach(function (uid) {
+    var mine = Object.keys(per[uid]).map(function (id) { return per[uid][id]; });
     mine.sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
     out.push({
       uid: uid,

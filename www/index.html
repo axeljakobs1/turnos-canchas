@@ -318,6 +318,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
       <b id="liqlabel"></b>
       <button class="btn sm" id="liqnext" type="button" aria-label="Mes siguiente">→</button>
       <button class="btn sm" id="liqrefresh" type="button">Actualizar</button>
+      <button class="btn sm" id="csvliq" type="button">Descargar CSV</button>
     </div>
     <div id="liqbody" class="accbody"></div>
     <p class="hint">Por cada persona: cuánto cobra por los turnos ya terminados (con las horas reales que corrigió), cuánto sería a fin de mes sumando los turnos que faltan, y los gastos extra cargados, con sus comentarios y fotos en el detalle. Los gastos extra se muestran aparte y no se suman al cobro por turnos.</p>
@@ -330,9 +331,17 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
       <b id="sedelabel"></b>
       <button class="btn sm" id="sedenext" type="button" aria-label="Mes siguiente">→</button>
       <button class="btn sm" id="sederefresh" type="button">Actualizar</button>
+      <button class="btn sm" id="csvsede" type="button">Descargar CSV</button>
     </div>
     <div id="sedebody" class="accbody"></div>
     <p class="hint">Cuánto paga cada sede a fin de mes: horas realizadas con los horarios que corrigieron las personas, valor según el fixture, gastos extra y sus comprobantes. Los nombres de la lista sin cuenta se cuentan con el horario programado.</p>
+  </details>
+
+  <details class="panel" id="auditpanel" hidden>
+    <summary><span class="sumtitle">Historial de cambios</span><span class="label">Solo administradores</span></summary>
+    <div class="row"><button class="btn sm" id="auditrefresh" type="button">Actualizar</button></div>
+    <div id="auditbody" class="accbody"></div>
+    <p class="hint">Los últimos 100 cambios: quién se anotó o salió de un turno, quién anotó o quitó a alguien, y quién creó, editó o borró turnos.</p>
   </details>
 
   <div class="panel" id="admin" hidden>
@@ -485,6 +494,23 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   function toast(msg) {
     var t = $("toast"); t.textContent = msg; t.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 3200);
+  }
+
+  // Cada anotación es un documento enrol/{turno}__{uid}. Se arma signupDocs con la misma forma de antes: {uid: {byUser: {usuario: [turnos]}}}
+  function buildSignupDocs(snap) {
+    var m = {};
+    snap.docs.forEach(function (d) {
+      var x = d.data() || {}; if (!x.uid || !x.slotId || !x.username) return;
+      var doc = (m[x.uid] = m[x.uid] || { byUser: {} });
+      (doc.byUser[x.username] = doc.byUser[x.username] || []).push(x.slotId);
+    });
+    return m;
+  }
+  function enrolId(slotId, uid) { return slotId + "__" + uid; }
+  function slotDesc(s) { return typeTitle(s.type) + " · " + venueName(s.venue) + " · " + longDate(s.date) + " " + s.start + "–" + s.end; }
+  function logAudit(text) {
+    if (!state.db || !state.uid) return;
+    state.db.collection("audit").add({ at: new Date().toISOString(), uid: state.uid, by: state.session || "", text: text }).catch(function () {});
   }
 
   // slotId -> [{uid, username}], sin repetir usuarios
@@ -673,7 +699,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     var arr = manualOf(s).slice();
     if (!val) { if (i < arr.length) arr.splice(i, 1); }
     else if (i < arr.length) arr[i] = val; else arr.push(val);
-    try { await state.db.doc("slots/" + s.id).update({ manual: arr }); }
+    try { await state.db.doc("slots/" + s.id).update({ manual: arr }); logAudit(state.session + (val ? " anotó a " + rosterName(val) + " en: " : " quitó a un nombre de la lista en: ") + slotDesc(s)); }
     catch (e) { toast("No se pudo cambiar el nombre del cupo."); render(); }
   }
 
@@ -1145,6 +1171,45 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     body.appendChild(list);
   }
 
+  // ---- exportar a CSV (se abre en Excel y en Google Sheets: Archivo > Importar) ----
+  function csvCell(v) { v = v == null ? "" : String(v); return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function csvNum(n) { return String(Math.round(n * 100) / 100).replace(".", ","); }
+  function dmy(d) { var p = String(d).split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+  function downloadCsv(key, label) {
+    if (!state.liqLoaded) return toast("Primero tocá Actualizar para leer las cargas.");
+    var now = new Date(), items = collectMonth(key);
+    if (!items.length) return toast("No hay turnos con gente anotada en ese mes.");
+    items.sort(function (a, b) { var ka = a.s.date + a.s.start + a.name, kb = b.s.date + b.s.start + b.name; return ka < kb ? -1 : ka > kb ? 1 : 0; });
+    var head = ["Fecha", "Fixture", "Sede", "Persona", "Cuenta", "Programado", "Horario real", "Horas", "Valor del turno", "Gasto extra", "Estado", "Comentario"];
+    var lines = [head.join(";")];
+    items.forEach(function (it) {
+      lines.push([dmy(it.s.date), typeTitle(it.s.type), venueName(it.s.venue), it.name, it.manual ? "Sin cuenta" : "Con cuenta",
+        it.s.start + " - " + it.s.end, it.e.start + " - " + it.e.end, csvNum(durMinutes(it.e) / 60), csvNum(slotAmount(it.e)),
+        csvNum(it.en ? it.en.expense : 0), endDate(it.e) < now ? "Hecho" : "Próximo", it.en ? it.en.comment : ""].map(csvCell).join(";"));
+    });
+    var blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "turnos-" + key + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    toast("Descargaste " + label + ". Abrilo con Excel o importalo en Google Sheets.");
+  }
+
+  // ---- historial de cambios (administrador) ----
+  async function loadAudit() {
+    if (!state.admin || !state.db) return;
+    var body = $("auditbody"); body.textContent = ""; body.appendChild(h("p", { class: "hint" }, "Cargando…"));
+    try {
+      var snap = await state.db.collection("audit").orderBy("at", "desc").limit(100).get();
+      body.textContent = "";
+      if (snap.empty) { body.appendChild(h("p", { class: "hint" }, "Todavía no hay cambios registrados.")); return; }
+      snap.docs.forEach(function (d) {
+        var x = d.data() || {}, t = new Date(x.at);
+        body.appendChild(h("div", { class: "myrow" }, h("div", { class: "when" }, isNaN(t) ? "" : t.toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })), h("div", {}, x.text || "")));
+      });
+    } catch (e) { body.textContent = ""; body.appendChild(h("p", { class: "hint" }, "No se pudo leer el historial.")); }
+  }
+
   // ---- reporte por sede (administrador) ----
   function sedeRange() { if (state.sedeMonth) return state.sedeMonth; var n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; }
 
@@ -1347,7 +1412,11 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
       var uid = state.userByName[u];
       await state.db.doc("users/" + uid).delete();
       await state.db.doc("usernames/" + u).delete();
-      try { await state.db.doc("signups/" + uid).delete(); } catch (e2) {}
+      try {
+        var mine2 = await state.db.collection("enrol").where("uid", "==", uid).get();
+        for (var q = 0; q < mine2.docs.length; q++) await mine2.docs[q].ref.delete();
+      } catch (e2) {}
+      logAudit(state.session + " quitó la cuenta " + u);
       toast("Se quitó la cuenta " + u + " y sus anotaciones.");
     } catch (e) { toast("No se pudo quitar la cuenta."); }
     renderAccounts();
@@ -1359,6 +1428,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   }
 
   function renderAccounts() {
+    $("auditpanel").hidden = !state.admin;
     var box = $("accounts"); box.hidden = !state.admin;
     if (!state.admin) return;
     var body = $("accbody"); body.textContent = "";
@@ -1490,38 +1560,27 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     if (!state.session || !state.uid || state.busy) return;
     if (ADMIN_ONLY.indexOf(s.type) !== -1 && !state.admin) return;
     var me = state.session;
-    var mydoc = state.signupDocs[state.uid] || {};
-    var by = Object.assign({}, mydoc.byUser || {});
-    var cur = new Set(Array.isArray(by[me]) ? by[me] : []);
     var att = attendees();
-    var isMine = (att[s.id] || []).some(function (a) { return a.username === me; });
-    if (isMine) {
-      if (!cur.has(s.id)) { toast("Te anotaste desde otra cuenta de Claude. Salí del turno desde esa cuenta."); return; }
-      cur.delete(s.id);
-    } else {
-      if (takenCount(s, att) >= s.cap) { toast("Ese turno se completó recién."); return; }
-      cur.add(s.id);
-    }
-    by[me] = Array.from(cur);
+    var isMine = (att[s.id] || []).some(function (a) { return a.username === me && a.uid === state.uid; });
+    if (!isMine && takenCount(s, att) >= s.cap) { toast("Ese turno se completó recién."); return; }
     state.busy = true; renderDays();
     try {
-      await state.db.doc("signups/" + state.uid).set({ byUser: by });
-      toast(cur.has(s.id) ? "Quedaste anotado." : "Saliste del turno.");
+      var ref = state.db.doc("enrol/" + enrolId(s.id, state.uid));
+      if (isMine) { await ref.delete(); logAudit(me + " salió de: " + slotDesc(s)); toast("Saliste del turno."); }
+      else { await ref.set({ slotId: s.id, uid: state.uid, username: me, at: new Date().toISOString() }); logAudit(me + " se anotó en: " + slotDesc(s)); toast("Quedaste anotado."); }
     } catch (e) { toast("No se pudo guardar. Probá de nuevo."); }
     state.busy = false; renderDays();
   }
 
   async function removeAttendee(s, a) {
-    var doc = state.signupDocs[a.uid] || {}, by = Object.assign({}, doc.byUser || {});
-    by[a.username] = (Array.isArray(by[a.username]) ? by[a.username] : []).filter(function (x) { return x !== s.id; });
-    try { await state.db.doc("signups/" + a.uid).set({ byUser: by }); toast("Quitaste a " + a.username + " del turno."); }
+    try { await state.db.doc("enrol/" + enrolId(s.id, a.uid)).delete(); logAudit(state.session + " quitó a " + a.username + " de: " + slotDesc(s)); toast("Quitaste a " + a.username + " del turno."); }
     catch (e) { toast("No se pudo quitar a esa persona."); }
   }
 
   // ---- configuración de turnos (administrador) ----
   async function removeSlot(s) {
     state.confirmDel = null;
-    try { await state.db.doc("slots/" + s.id).delete(); toast("Turno borrado."); }
+    try { await state.db.doc("slots/" + s.id).delete(); logAudit(state.session + " borró el turno: " + slotDesc(s)); toast("Turno borrado."); }
     catch (e) { toast("No se pudo borrar el turno."); }
   }
 
@@ -1548,7 +1607,9 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     var taken = takenCount(s, attendees());
     var inWeek = e.date >= iso(state.week) && e.date <= iso(addDays(state.week, 6));
     try {
+      var antes = slotDesc(s);
       await state.db.doc("slots/" + s.id).update({ date: e.date, start: e.start, end: e.end, cap: cap });
+      logAudit(state.session + " editó el turno: " + antes + " → " + e.date + " " + e.start + "–" + e.end + ", cupo " + cap);
       state.editing = null;
       toast(cap < taken ? "Turno guardado. El cupo es menor que los anotados; no se quitó a nadie." : "Turno guardado. Los anotados se mantienen." + (inWeek ? "" : " Ahora está en otra semana."));
       render();
@@ -1596,6 +1657,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
           made++;
         }
       }
+      if (made) logAudit(state.session + " agregó " + made + (made === 1 ? " turno" : " turnos") + " a " + typeTitle(type) + " · " + venueName(venue));
       toast(made + (made === 1 ? " turno agregado" : " turnos agregados") + (skipped ? " (" + skipped + " ya existían)." : "."));
     } catch (e) { toast("No se pudieron agregar todos los turnos."); }
     $("addslots").disabled = false;
@@ -1618,6 +1680,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
         state.slots.push({ id: id, type: type, venue: venue, date: date, start: s.start, end: s.end, cap: s.cap, manual: [] });
         made++;
       }
+      if (made) logAudit(state.session + " copió " + made + " turnos de " + typeTitle(type) + " · " + venueName(venue) + " a la semana siguiente");
       toast(made ? made + " turnos copiados a la semana siguiente (sin anotados)." : "La semana siguiente ya tenía esos turnos.");
     } catch (e) { toast("No se pudo copiar toda la semana."); }
     $("copyweek").disabled = false;
@@ -1664,6 +1727,10 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   $("liqprev").onclick = function () { var m = liqRange(), d = new Date(m.y, m.m - 1, 1); state.liqMonth = { y: d.getFullYear(), m: d.getMonth() }; renderLiq(); };
   $("liqnext").onclick = function () { var m = liqRange(), d = new Date(m.y, m.m + 1, 1); state.liqMonth = { y: d.getFullYear(), m: d.getMonth() }; renderLiq(); };
   $("liqrefresh").onclick = loadLiq;
+  $("csvliq").onclick = function () { var m = liqRange(); downloadCsv(m.y + "-" + pad(m.m + 1), "el CSV de " + $("liqlabel").textContent); };
+  $("csvsede").onclick = function () { var m = sedeRange(); downloadCsv(m.y + "-" + pad(m.m + 1), "el CSV de " + $("sedelabel").textContent); };
+  $("auditrefresh").onclick = loadAudit;
+  $("auditpanel").addEventListener("toggle", function () { if ($("auditpanel").open) loadAudit(); });
   $("sedeprev").onclick = function () { var m = sedeRange(), d = new Date(m.y, m.m - 1, 1); state.sedeMonth = { y: d.getFullYear(), m: d.getMonth() }; renderSedes(); };
   $("sedenext").onclick = function () { var m = sedeRange(), d = new Date(m.y, m.m + 1, 1); state.sedeMonth = { y: d.getFullYear(), m: d.getMonth() }; renderSedes(); };
   $("sederefresh").onclick = loadLiq;
@@ -1803,9 +1870,8 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
       if (!snap.metadata.fromCache) { clearTimeout(timer); state.unreachable = false; }
       state.loaded = true; render(); syncReminders();
     });
-    listen(db.collection("signups"), function (snap) {
-      var m = {}; snap.docs.forEach(function (d) { m[d.id] = d.data() || {}; });
-      state.signupDocs = m; renderDays(); renderMine(); if (!state.type) renderStage(); syncReminders();
+    listen(db.collection("enrol"), function (snap) {
+      state.signupDocs = buildSignupDocs(snap); renderDays(); renderMine(); if (!state.type) renderStage(); syncReminders();
     });
   }
 

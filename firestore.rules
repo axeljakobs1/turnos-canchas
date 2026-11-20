@@ -25,9 +25,25 @@ service cloud.firestore {
     match /slots/{id}   { allow read: if approved(); allow write: if admin(); }
     match /roster/{id}  { allow read: if approved(); allow write: if admin(); }
     match /rates/{id}   { allow read: if approved(); allow write: if admin(); }
-    match /signups/{uid} {
+    // Anotaciones: un documento por persona y turno (id = turno__uid).
+    // En "viernes" y "especiales" solo anotan los administradores.
+    match /enrol/{id} {
       allow read: if approved();
-      allow write: if approved() && (request.auth.uid == uid || admin());
+      allow create: if approved()
+        && request.resource.data.keys().hasOnly(['slotId', 'uid', 'username', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.username == mine().username
+        && id == request.resource.data.slotId + '__' + request.auth.uid
+        && (admin() || !(get(/databases/$(db)/documents/slots/$(request.resource.data.slotId)).data.type in ['viernes', 'especiales']));
+      allow update: if false;
+      allow delete: if approved() && (resource.data.uid == request.auth.uid || admin());
+    }
+    // Historial de cambios: lo escribe cualquier cuenta aprobada, solo lo leen los administradores; no se edita ni se borra.
+    match /audit/{id} {
+      allow read: if admin();
+      allow create: if approved() && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['at', 'uid', 'by', 'text']);
+      allow update, delete: if false;
     }
     match /devices/{uid} {
       allow read, write: if approved() && request.auth.uid == uid;
