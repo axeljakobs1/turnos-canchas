@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function mine() { return get(/databases/$(db)/documents/users/$(request.auth.uid)).data; }
+    function approved() { return signedIn() && exists(/databases/$(db)/documents/users/$(request.auth.uid)) && mine().approved == true; }
+    function admin() { return approved() && mine().role == 'admin'; }
+    // Administrador principal: solo con ese mail verificado
+    function isMain() { return signedIn() && request.auth.token.email == 'axeljakobs1@gmail.com' && request.auth.token.email_verified == true; }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || admin());
+      allow create: if signedIn() && request.auth.uid == uid
+        && ((request.resource.data.approved == false && request.resource.data.role == null)
+            || (isMain() && request.resource.data.username == 'axel'));
+      allow update: if admin() || (isMain() && request.auth.uid == uid && resource.data.username == 'axel' && request.resource.data.username == 'axel');
+      allow delete: if admin();
+    }
+    match /usernames/{name} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if admin();
+    }
+    match /venues/{id}  { allow read: if approved(); allow write: if admin(); }
+    match /slots/{id}   { allow read: if approved(); allow write: if admin(); }
+    match /roster/{id}  { allow read: if approved(); allow write: if admin(); }
+    match /rates/{id}   { allow read: if approved(); allow write: if admin(); }
+    match /signups/{uid} {
+      allow read: if approved();
+      allow write: if approved() && (request.auth.uid == uid || admin());
+    }
+    match /devices/{uid} {
+      allow read, write: if approved() && request.auth.uid == uid;
+    }
+    match /reports/{uid}/{document=**} {
+      allow read, write: if approved() && (request.auth.uid == uid || admin());
+    }
+  }
+}

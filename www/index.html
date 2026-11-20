@@ -1,0 +1,1800 @@
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script src="firebase-config.js"></script>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1B7F4B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Turnos">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Turnos de Canchas</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: cabecera con cuenta; inicio con 4 opciones (3 fixtures + Tus turnos); fixture: tipo > sede > semana; Tus turnos: listas, formulario de carga e historial; paneles de configuración solo para administradores. */
+:root {
+  --bg: #f1f4ee;
+  --surface: #ffffff;
+  --ink: #15261b;
+  --muted: #5b6b5f;
+  --line: #d6ded2;
+  --accent: #1d7a3d;
+  --accent-ink: #ffffff;
+  --soft: #e4eee3;
+  --warn: #a35b00;
+  --bad: #b3261e;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1a13; --surface: #162319; --ink: #e6efe4; --muted: #94a899; --line: #29392d;
+    --accent: #4cc27a; --accent-ink: #08160d; --soft: #1d3023; --warn: #e0a042; --bad: #f0877f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1a13; --surface: #162319; --ink: #e6efe4; --muted: #94a899; --line: #29392d;
+  --accent: #4cc27a; --accent-ink: #08160d; --soft: #1d3023; --warn: #e0a042; --bad: #f0877f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h1 { font-size: clamp(1.9rem, 5vw, 2.6rem); line-height: 1; text-transform: uppercase; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.1rem; text-transform: uppercase; }
+.label { font-size: .72rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px 20px; }
+.headright { display: grid; gap: 10px; justify-items: end; }
+.weeknav { display: flex; align-items: center; gap: 6px; }
+.weeknav .range { font-family: var(--font-display); font-weight: 600; font-size: 1.25rem; min-width: 11.5rem; text-align: center; font-variant-numeric: tabular-nums; }
+.session { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .9rem; }
+.session b { font-weight: 600; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 12px; font-weight: 600; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn.sm { padding: 4px 9px; font-size: .85rem; }
+
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.crumb { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-weight: 600; font-size: .9rem; }
+.crumb:hover { border-color: var(--accent); }
+.crumbs .sep { color: var(--muted); }
+.crumbs .here { color: var(--muted); font-size: .9rem; }
+
+.stage { display: grid; gap: 14px; }
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.choice { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px 16px; display: grid; gap: 6px; min-width: 0; }
+.choice:hover { border-color: var(--accent); }
+.choice .cname { font-family: var(--font-display); font-weight: 700; font-size: 1.9rem; line-height: 1; text-transform: uppercase; }
+.choice .csub { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+.choice.mine { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.choice.mine .csub { color: var(--bg); opacity: .8; }
+
+.venue { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.venue .addr { color: var(--muted); }
+
+.notice { border: 1px solid var(--line); background: var(--soft); border-radius: 8px; padding: 10px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.notice.warn { border-color: var(--warn); }
+#notices { display: grid; gap: 8px; }
+
+.days { display: grid; gap: 10px; }
+.day { display: grid; grid-template-columns: 5.2rem minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.day:first-child { border-top: 0; }
+.dayname { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1; text-transform: uppercase; }
+.dayname small { display: block; font-family: var(--font-body); font-size: .8rem; font-weight: 500; color: var(--muted); text-transform: none; margin-top: 4px; }
+.day.today .dayname { color: var(--accent); }
+.slots { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; min-width: 0; }
+.none { color: var(--muted); font-size: .9rem; padding-top: 4px; }
+
+.slot { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; width: 230px; max-width: 100%; display: grid; gap: 9px; }
+.slot.mine { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.slot.past { opacity: .6; }
+.time { font-family: var(--font-display); font-weight: 700; font-size: 1.45rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.count { font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; justify-content: space-between; gap: 8px; }
+.count b { color: var(--ink); }
+.dots { display: flex; flex-wrap: wrap; gap: 4px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.dot.on { background: var(--accent); border-color: var(--accent); }
+.slot.full .dot.on { background: var(--warn); border-color: var(--warn); }
+.bar { height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.slot.full .bar i { background: var(--warn); }
+.slot .btn { width: 100%; }
+.tag { font-size: .8rem; font-weight: 600; color: var(--accent); }
+.adminrow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px; }
+.adminrow label { font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+.adminrow input { width: 3.6rem; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 3px 6px; }
+details.who { font-size: .88rem; }
+details.who summary { cursor: pointer; color: var(--muted); font-weight: 500; }
+details.who ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+details.who li { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+details.who li.me { font-weight: 600; color: var(--accent); }
+.x { border: 0; background: transparent; color: var(--bad); padding: 0 4px; font-size: 1rem; line-height: 1; }
+select.namesel { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 5px 6px; }
+.spot { display: grid; gap: 2px; width: 100%; }
+.spot .label { font-size: .65rem; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 16px; }
+.panel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.panel section { display: grid; gap: 10px; align-content: start; min-width: 0; }
+details.panel > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+details.panel > summary::-webkit-details-marker { display: none; }
+details.panel > summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+details.panel[open] > summary::after { content: "▴"; }
+.sumtitle { font-family: var(--font-display); font-weight: 700; font-size: 1.35rem; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.editbox { display: grid; gap: 8px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.accbody { display: grid; gap: 8px; }
+.accrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.accrow .who2 { display: grid; min-width: 0; }
+.accrow small { color: var(--muted); }
+.field input[type="text"], .field input[type="time"], .field input[type="number"], .field input[type="password"], .field input[type="date"], .field input[type="email"], .field textarea {
+  border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 7px 9px; width: 100%; min-width: 0;
+}
+.field textarea { resize: vertical; min-height: 4.5rem; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.row .field { flex: 1 1 110px; }
+.trows { display: grid; gap: 10px; }
+.trow { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); }
+.dayspick { display: flex; flex-wrap: wrap; gap: 6px; }
+.dayspick label { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; background: var(--bg); font-size: .9rem; cursor: pointer; }
+.dayspick input { accent-color: var(--accent); }
+.hint { color: var(--muted); font-size: .85rem; margin: 0; }
+.err { color: var(--bad); font-size: .9rem; margin: 0; min-height: 1.2em; }
+form.auth { max-width: 460px; margin: 0 auto; width: 100%; }
+fieldset.roles { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; min-width: 0; }
+fieldset.roles legend { padding: 0; margin-bottom: 6px; }
+.role { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--bg); cursor: pointer; }
+.role:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.role:has(input:disabled) { opacity: .6; cursor: not-allowed; }
+.role input { accent-color: var(--accent); margin-top: 3px; }
+.role small { display: block; color: var(--muted); font-size: .85rem; }
+
+#mine { display: grid; gap: 16px; }
+.mine-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; align-items: start; }
+.mine-grid > .panel { min-width: 0; }
+.mylist { display: grid; gap: 8px; }
+.myrow { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--line); }
+.myrow:first-child { border-top: 0; }
+.myrow .when { font-weight: 600; font-variant-numeric: tabular-nums; }
+.myrow .where { color: var(--muted); font-size: .9rem; }
+.myrow.past { opacity: .75; }
+.total { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; background: var(--soft); border-radius: 8px; padding: 10px 12px; font-weight: 600; }
+.entry { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
+.entry:first-of-type { border-top: 0; }
+.entry .top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline; }
+.entry .money { font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.entry .comment { white-space: pre-wrap; overflow-wrap: anywhere; }
+.amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tablewrap { overflow-x: auto; }
+table.liqtable { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+table.liqtable th, table.liqtable td { padding: 8px 10px; border-top: 1px solid var(--line); text-align: right; white-space: nowrap; }
+table.liqtable th:first-child, table.liqtable td:first-child { text-align: left; }
+table.liqtable th { border-top: 0; font-size: .72rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); white-space: normal; }
+table.liqtable tfoot td { font-weight: 700; background: var(--soft); }
+.myrow .comment { white-space: pre-wrap; overflow-wrap: anywhere; }
+img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1px solid var(--line); border-radius: 8px; margin-top: 6px; }
+.photo, .photoedit { display: grid; gap: 6px; justify-items: start; }
+.sedecard { margin: 8px 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.stat { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 2px; min-width: 0; background: var(--bg); }
+.stat .sv { font-family: var(--font-display); font-weight: 700; font-size: 1.8rem; line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.stat .ss { color: var(--muted); font-size: .85rem; }
+.stat.big { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.stat.big .label, .stat.big .ss { color: var(--accent-ink); opacity: .85; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-weight: 500; max-width: calc(100% - 32px); z-index: 20; }
+@media (max-width: 560px) {
+  .day { grid-template-columns: 1fr; gap: 8px; }
+  .dayname { display: flex; align-items: baseline; gap: 10px; }
+  .dayname small { margin: 0; }
+  .slot { width: 100%; }
+  .weeknav .range { min-width: 0; flex: 1; }
+  header { align-items: stretch; }
+  .headright { justify-items: stretch; width: 100%; }
+  .weeknav { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="label">Fútbol · 4 sedes</div>
+      <h1>Turnos de canchas</h1>
+    </div>
+    <div class="headright">
+      <div class="session" id="session"></div>
+      <div class="weeknav" id="weeknav" hidden>
+        <button class="btn" id="prev" aria-label="Semana anterior">←</button>
+        <div class="range" id="range" aria-live="polite"></div>
+        <button class="btn" id="next" aria-label="Semana siguiente">→</button>
+        <button class="btn" id="today">Hoy</button>
+      </div>
+    </div>
+  </header>
+
+  <form class="panel auth" id="authbox" hidden autocomplete="on">
+    <div>
+      <div class="label">Tu cuenta</div>
+      <h2 id="authtitle">Ingresar</h2>
+    </div>
+    <fieldset class="roles">
+      <legend class="label">Ingresar como</legend>
+      <label class="role" for="role-admin"><input type="radio" name="role" value="admin" id="role-admin"><span><b>Administrador</b><small id="adminnote">Cargás y editás turnos y aprobás cuentas.</small></span></label>
+      <label class="role" for="role-member"><input type="radio" name="role" value="member" id="role-member"><span><b>Colaborador</b><small>Ves los turnos y te anotás.</small></span></label>
+    </fieldset>
+    <div class="field"><label class="label" for="authemail">Mail</label><input type="email" id="authemail" autocomplete="email" maxlength="120" autocapitalize="none" spellcheck="false"></div>
+    <div class="field" id="userwrap" hidden><label class="label" for="authuser">Nombre de usuario</label><input type="text" id="authuser" autocomplete="username" maxlength="20" autocapitalize="none" spellcheck="false"></div>
+    <div class="field"><label class="label" for="authpass">Contraseña</label><input type="password" id="authpass" autocomplete="current-password" maxlength="100"></div>
+    <div class="field" id="pass2wrap" hidden><label class="label" for="authpass2">Repetir contraseña</label><input type="password" id="authpass2" autocomplete="new-password" maxlength="100"></div>
+    <p class="err" id="autherr" role="alert"></p>
+    <div class="row">
+      <button class="btn primary" type="submit" id="authgo">Ingresar</button>
+      <button class="btn" type="button" id="authswitch">Crear cuenta</button>
+      <button class="btn" type="button" id="authclose" hidden>Cerrar</button>
+    </div>
+    <p class="hint">Se ingresa con el mail y la contraseña. El nombre de usuario (3 a 20 caracteres: minúsculas, números, guion y guion bajo) es el que ven los demás en los turnos en los que te anotes. Tu mail solo lo ve el administrador. Las cuentas de colaborador necesitan la aprobación de un administrador antes de poder ingresar.</p>
+    <p class="hint">Usá una contraseña que no uses en otros sitios.</p>
+  </form>
+
+  <div class="crumbs" id="crumbs" hidden></div>
+  <div class="stage" id="stage" hidden></div>
+  <div class="venue" id="venue" hidden></div>
+  <div id="notices"></div>
+  <div class="days" id="days" hidden></div>
+
+  <section id="mine" hidden>
+    <div class="panel" id="minesum"></div>
+    <div class="panel">
+      <div><div class="label">Tus turnos</div><h2 id="minetitle">Tus turnos del mes</h2></div>
+      <p class="hint">Los turnos en los que te anotás aparecen solos, con el horario programado. Si el turno se extendió o se acortó, corregí las horas reales: el valor se calcula con esas horas. También podés cargar un gasto extra, un comentario y una foto.</p>
+      <div id="minelist" class="mylist"></div>
+    </div>
+  </section>
+
+  <div class="panel" id="accounts" hidden>
+    <div>
+      <div class="label">Solo administradores</div>
+      <h2>Cuentas de usuario</h2>
+    </div>
+    <div id="accbody" class="accbody"></div>
+    <p class="hint">Cada persona que pide una cuenta de colaborador queda pendiente hasta que la apruebes. Al rechazar o quitar una cuenta, el usuario queda libre y se borran sus anotaciones.</p>
+  </div>
+
+  <details class="panel" id="rosterpanel" hidden>
+    <summary><span class="sumtitle">Lista de nombres (<span id="rostercount">0</span>)</span><span class="label">Solo administradores</span></summary>
+    <p class="hint">Estos nombres aparecen en el desplegable de cada cupo de los turnos. Sirven para anotar a alguien que no usa la app. Si cambiás un nombre, se actualiza en todos los turnos. Si lo quitás, se saca de todos los turnos.</p>
+    <div class="row">
+      <div class="field"><label class="label" for="rname-new">Nombre nuevo</label><input type="text" id="rname-new" maxlength="40" autocomplete="off"></div>
+      <button class="btn primary" id="radd" type="button">Agregar</button>
+    </div>
+    <div class="accbody" id="rosterlist"></div>
+  </details>
+
+  <div class="panel" id="ratespanel" hidden>
+    <div>
+      <div class="label">Solo administradores</div>
+      <h2>Valor por hora por fixture</h2>
+    </div>
+    <div class="row">
+      <div class="field"><label class="label" for="rate-viernes">Fixture viernes ($ por hora)</label><input type="number" id="rate-viernes" min="0" step="0.01" placeholder="0" inputmode="decimal"></div>
+      <div class="field"><label class="label" for="rate-rutina">Fixture rutina ($ por hora)</label><input type="number" id="rate-rutina" min="0" step="0.01" placeholder="0" inputmode="decimal"></div>
+      <div class="field"><label class="label" for="rate-extrarutina">Fixture eventos extra rutina ($ por hora)</label><input type="number" id="rate-extrarutina" min="0" step="0.01" placeholder="0" inputmode="decimal"></div>
+      <div class="field"><label class="label" for="rate-especiales">Fixture eventos especiales ($ por hora)</label><input type="number" id="rate-especiales" min="0" step="0.01" placeholder="0" inputmode="decimal"></div>
+    </div>
+    <div><button class="btn primary" id="saverates" type="button">Guardar valores</button></div>
+    <p class="hint">Cada fixture tiene un único valor por hora, igual para todas las sedes y todos los turnos de ese fixture. La app calcula el valor final de cada turno según su duración, y ese valor final es lo único que se muestra. Si cambiás un valor, se recalculan todos los turnos de ese fixture, también los de meses anteriores.</p>
+  </div>
+
+  <details class="panel" id="liqpanel" hidden>
+    <summary><span class="sumtitle">Liquidación del mes</span><span class="label">Solo administradores</span></summary>
+    <div class="row">
+      <button class="btn sm" id="liqprev" type="button" aria-label="Mes anterior">←</button>
+      <b id="liqlabel"></b>
+      <button class="btn sm" id="liqnext" type="button" aria-label="Mes siguiente">→</button>
+      <button class="btn sm" id="liqrefresh" type="button">Actualizar</button>
+    </div>
+    <div id="liqbody" class="accbody"></div>
+    <p class="hint">Por cada persona: cuánto cobra por los turnos ya terminados (con las horas reales que corrigió), cuánto sería a fin de mes sumando los turnos que faltan, y los gastos extra cargados, con sus comentarios y fotos en el detalle. Los gastos extra se muestran aparte y no se suman al cobro por turnos.</p>
+  </details>
+
+  <details class="panel" id="sedepanel" hidden>
+    <summary><span class="sumtitle">Reporte por sede</span><span class="label">Solo administradores</span></summary>
+    <div class="row">
+      <button class="btn sm" id="sedeprev" type="button" aria-label="Mes anterior">←</button>
+      <b id="sedelabel"></b>
+      <button class="btn sm" id="sedenext" type="button" aria-label="Mes siguiente">→</button>
+      <button class="btn sm" id="sederefresh" type="button">Actualizar</button>
+    </div>
+    <div id="sedebody" class="accbody"></div>
+    <p class="hint">Cuánto paga cada sede a fin de mes: horas realizadas con los horarios que corrigieron las personas, valor según el fixture, gastos extra y sus comprobantes. Los nombres de la lista sin cuenta se cuentan con el horario programado.</p>
+  </details>
+
+  <div class="panel" id="admin" hidden>
+    <div>
+      <div class="label">Solo administradores</div>
+      <h2>Configurar turnos</h2>
+    </div>
+    <div class="panel-grid">
+      <section>
+        <div class="label">Datos de la sede (valen para los 3 tipos de fixture)</div>
+        <div class="field"><label class="label" for="vname">Nombre de la sede</label><input type="text" id="vname" maxlength="60"></div>
+        <div class="field"><label class="label" for="vaddr">Dirección</label><input type="text" id="vaddr" maxlength="120"></div>
+        <div><button class="btn" id="savevenue">Guardar sede</button></div>
+      </section>
+      <section>
+        <div class="label" id="addlabel">Agregar turnos a la semana mostrada</div>
+        <div class="dayspick" id="dayspick"></div>
+        <div class="trows" id="trows"></div>
+        <div><button class="btn" id="addrow" type="button">+ Agregar otro horario al mismo día</button></div>
+        <div class="row">
+          <button class="btn primary" id="addslots">Agregar turnos</button>
+          <button class="btn" id="copyweek">Copiar semana a la siguiente</button>
+        </div>
+        <p class="hint">Cada día puede tener todos los horarios que quieras. Si un turno termina después de medianoche, poné la hora de fin del día siguiente (por ejemplo, de 23:00 a 01:00): se muestra en el día en que empieza.</p>
+        <p class="hint">Cada turno de la grilla tiene su propio cupo y botones para editarlo (fecha, horario y cupo) o borrarlo. El valor por hora se define para todo el fixture en el panel "Valor por hora por fixture". En "Anotados" elegís quién ocupa cada cupo libre.</p>
+      </section>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  var SEDES = ["s1", "s2", "s3", "s4"];
+  var TYPES = [
+    { id: "viernes", name: "Viernes", title: "Fixture viernes" },
+    { id: "rutina", name: "Rutina", title: "Fixture rutina" },
+    { id: "extrarutina", name: "Eventos extra rutina", title: "Fixture eventos extra rutina" },
+    { id: "especiales", name: "Eventos especiales", title: "Fixture eventos especiales" }
+  ];
+  var DOW = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+  var MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  var ITER = 150000;
+  var USER_RE = /^[a-z0-9_-]{3,20}$/;
+  var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  var pad = function (n) { return String(n).padStart(2, "0"); };
+  var iso = function (d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); };
+  var parse = function (s) { var p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); };
+  var monday = function (d) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+  var addDays = function (d, n) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; };
+  var typeObj = function (id) { return TYPES.filter(function (x) { return x.id === id; })[0]; };
+  var typeTitle = function (id) { var t = typeObj(id); return t ? t.title : id; };
+  var longDate = function (s) { var d = parse(s); return DOW[(d.getDay() + 6) % 7] + " " + d.getDate() + " " + MES[d.getMonth()] + " " + d.getFullYear(); };
+  var money = function (n) { return "$ " + Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 2 }); };
+
+  // Un turno cuyo fin es igual o menor que su inicio termina al día siguiente.
+  var crossesMidnight = function (s) { return s.end <= s.start; };
+  function endDate(s) {
+    var d = parse(s.date);
+    if (crossesMidnight(s)) d = addDays(d, 1);
+    var p = s.end.split(":");
+    d.setHours(Number(p[0]), Number(p[1]), 0, 0);
+    return d;
+  }
+  function durMinutes(s) {
+    var a = s.start.split(":"), b = s.end.split(":");
+    var mins = (Number(b[0]) * 60 + Number(b[1])) - (Number(a[0]) * 60 + Number(a[1]));
+    if (mins <= 0) mins += 24 * 60;
+    return mins;
+  }
+  function fmtMins(mins) {
+    var hh = Math.floor(mins / 60), mm = mins % 60;
+    if (!hh) return mm + " min";
+    return hh + " h" + (mm ? " " + mm + " min" : "");
+  }
+  function durationLabel(s) { return fmtMins(durMinutes(s)); }
+  // Valor final del turno = valor por hora del fixture (tipo) x duración. 0 si el fixture no tiene valor cargado.
+  function slotAmount(s) {
+    var r = Number(state.rates[s.type]) || 0;
+    return r > 0 ? Math.round(r * durMinutes(s) / 60 * 100) / 100 : 0;
+  }
+  var MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  function curMonthLabel() { var n = new Date(); return MESES[n.getMonth()] + " " + n.getFullYear(); }
+  function inCurMonth(dateStr) { var n = new Date(); return String(dateStr || "").slice(0, 7) === n.getFullYear() + "-" + pad(n.getMonth() + 1); }
+
+  var $ = function (id) { return document.getElementById(id); };
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      var v = attrs[k];
+      if (v == null || v === false) return;
+      if (k === "class") el.className = v;
+      else if (k.slice(0, 2) === "on") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    });
+    for (var i = 2; i < arguments.length; i++) {
+      var c = arguments[i];
+      if (c == null || c === false) continue;
+      el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    }
+    return el;
+  }
+
+  var state = {
+    week: monday(new Date()), type: null, venue: null, venues: {}, slots: [], signupDocs: {},
+    session: null, role: null, uid: null, canEdit: false, admin: false, canWrite: null,
+    loaded: false, busy: false, confirmDel: null, adminVenueShown: null, db: null, unreachable: false,
+    showAuth: false, authMode: "login", authRole: null, closedWho: {}, editing: null,
+    dbIssue: null, accounts: {}, approved: {}, approvedLoaded: false, accountsLoaded: false, confirmAcc: null,
+    rates: {}, roster: {}, confirmRoster: null, contacts: {}, reportMap: {}, mineEdit: null, liqMonth: null, sedeMonth: null, liqEntries: {}, liqLoaded: false, liqBusy: false
+  };
+
+  // Solo es administrador quien tiene acceso de editor en la página Y eligió ingresar como administrador.
+  function applyRole() { state.admin = !!(state.canEdit && state.session && state.role === "admin"); renderRoster(); renderRates(); renderLiq(); renderSedes(); }
+
+  // ---- sesión (solo en este navegador) ----
+  var memSession = null;
+  function readSession() {
+    var raw = null;
+    try { raw = localStorage.getItem("tc_session"); } catch (e) {}
+    raw = raw || memSession;
+    if (!raw) return null;
+    try { var o = JSON.parse(raw); return o && o.u && (o.r === "admin" || o.r === "member") ? o : null; } catch (e) { return null; }
+  }
+  function writeSession(o) {
+    var raw = o ? JSON.stringify(o) : null;
+    memSession = raw;
+    try { if (raw) localStorage.setItem("tc_session", raw); else localStorage.removeItem("tc_session"); } catch (e) {}
+  }
+
+  // ---- contraseñas: PBKDF2 con sal propia por cuenta ----
+  function b64e(bytes) { var s = ""; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s); }
+  function b64d(str) { var s = atob(str), a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; }
+  async function derive(pw, saltB64, iters) {
+    var key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveBits"]);
+    var bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: b64d(saltB64), iterations: iters, hash: "SHA-256" }, key, 256);
+    return b64e(new Uint8Array(bits));
+  }
+  async function sha256hex(s) {
+    var b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(b)).map(function (x) { return x.toString(16).padStart(2, "0"); }).join("");
+  }
+
+  function venueName(id) { return (state.venues[id] && state.venues[id].name) || "Sede " + (SEDES.indexOf(id) + 1); }
+
+  var toastTimer;
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 3200);
+  }
+
+  // slotId -> [{uid, username}], sin repetir usuarios
+  function attendees() {
+    var m = {}, seen = {};
+    Object.keys(state.signupDocs).sort().forEach(function (uid) {
+      var by = (state.signupDocs[uid] && state.signupDocs[uid].byUser) || {};
+      Object.keys(by).sort().forEach(function (username) {
+        (Array.isArray(by[username]) ? by[username] : []).forEach(function (sid) {
+          var key = sid + "|" + username;
+          if (seen[key]) return;
+          seen[key] = 1;
+          (m[sid] = m[sid] || []).push({ uid: uid, username: username });
+        });
+      });
+    });
+    return m;
+  }
+  function manualOf(s) { return Array.isArray(s.manual) ? s.manual : []; }
+  function rosterName(id) { return (state.roster[id] && state.roster[id].name) || "Sin nombre"; }
+  function takenCount(s, att) { return (att[s.id] || []).length + manualOf(s).length; }
+
+  function needLogin() { return state.authReady && !state.session; }
+  function isFixture() { return !!typeObj(state.type); }
+  function inSchedule() { return !needLogin() && !state.dbIssue && isFixture() && !!state.venue; }
+
+  function countUpcoming(type, venue) {
+    var now = new Date();
+    return state.slots.filter(function (s) { return s.type === type && (!venue || s.venue === venue) && endDate(s) >= now; }).length;
+  }
+  function typeSummary(type) {
+    if (!state.loaded) return "Cargando…";
+    var now = new Date(), att = attendees(), all = state.slots.filter(function (s) { return s.type === type; });
+    var open = all.filter(function (s) { return endDate(s) >= now && takenCount(s, att) < s.cap; });
+    var vac = open.reduce(function (a, s) { return a + (s.cap - takenCount(s, att)); }, 0);
+    return all.length + (all.length === 1 ? " turno en total" : " turnos en total") + " · " + open.length + (open.length === 1 ? " pendiente con lugar" : " pendientes con lugar") + (open.length ? " (" + vac + (vac === 1 ? " vacante)" : " vacantes)") : "");
+  }
+  function venueSummary(type, venue) {
+    if (!state.loaded) return "Cargando…";
+    var now = new Date(), att = attendees(), key = now.getFullYear() + "-" + pad(now.getMonth() + 1);
+    var month = state.slots.filter(function (s) { return s.type === type && s.venue === venue && String(s.date).slice(0, 7) === key; });
+    var open = month.filter(function (s) { return endDate(s) >= now && takenCount(s, att) < s.cap; });
+    return month.length + (month.length === 1 ? " turno en el mes" : " turnos en el mes") + " · " + open.length + (open.length === 1 ? " disponible" : " disponibles");
+  }
+  function countLabel(n) { return !state.loaded ? "Cargando…" : n + (n === 1 ? " turno próximo" : " turnos próximos"); }
+
+  function mySlots() {
+    if (!state.session) return [];
+    var att = attendees();
+    return state.slots.filter(function (s) { return (att[s.id] || []).some(function (a) { return a.username === state.session; }); })
+      .sort(function (a, b) { var ka = a.date + a.start, kb = b.date + b.start; return ka < kb ? -1 : ka > kb ? 1 : 0; });
+  }
+
+  // ---- render ----
+  function renderSession() {
+    var box = $("session"); box.textContent = "";
+    if (state.session) {
+      box.appendChild(h("span", {}, "Usuario: ", h("b", {}, state.session), " · " + (state.admin ? "Administrador" : "Colaborador")));
+      box.appendChild(h("button", { class: "btn sm", onclick: logout }, "Salir"));
+    } else if (state.canWrite !== false && !state.dbIssue) {
+      box.appendChild(h("button", { class: "btn sm", onclick: function () { openAuth("login"); } }, "Ingresar"));
+      box.appendChild(h("button", { class: "btn sm", onclick: function () { openAuth("register"); } }, "Crear cuenta"));
+    }
+  }
+
+  function renderAuth() {
+    var show = state.showAuth || (needLogin() && !state.dbIssue);
+    $("authbox").hidden = !show;
+    var reg = state.authMode === "register";
+    var memberReq = reg;
+    $("authtitle").textContent = reg ? "Crear cuenta" : "Ingresar";
+    $("authgo").textContent = reg ? (memberReq ? "Enviar solicitud" : "Crear cuenta") : "Ingresar";
+    $("authswitch").textContent = reg ? "Ya tengo cuenta" : "Crear cuenta";
+    $("userwrap").hidden = !reg;
+    $("pass2wrap").hidden = !reg;
+    $("authpass").setAttribute("autocomplete", reg ? "new-password" : "current-password");
+    $("authclose").hidden = needLogin();
+    var ra = $("role-admin");
+    ra.disabled = false;
+    $("adminnote").textContent = "Cargás y editás turnos y aprobás cuentas. Tu solicitud la tiene que aprobar el administrador principal.";
+    ra.checked = state.authRole === "admin";
+    $("role-member").checked = state.authRole === "member";
+  }
+
+  function goHome() { state.type = null; state.venue = null; state.confirmDel = null; state.editing = null; render(); }
+
+  function renderStage() {
+    var box = $("stage"), cr = $("crumbs");
+    box.textContent = ""; cr.textContent = "";
+    box.hidden = true; cr.hidden = true;
+    if (needLogin() || state.dbIssue) return;
+    if (!state.type) {
+      box.hidden = false;
+      box.appendChild(h("h2", {}, state.admin ? "¿Qué querés cargar o ver?" : "¿Qué querés ver?"));
+      var grid = h("div", { class: "choices" });
+      TYPES.forEach(function (t) {
+        grid.appendChild(h("button", { class: "choice", onclick: function () { state.type = t.id; state.venue = null; state.confirmDel = null; state.editing = null; render(); } },
+          h("span", { class: "cname" }, t.title), h("span", { class: "csub" }, typeSummary(t.id))));
+      });
+      if (state.session) {
+        var now = new Date();
+        var up = mySlots().filter(function (s) { return endDate(s) >= now && inCurMonth(s.date); }).length;
+        grid.appendChild(h("button", { class: "choice mine", onclick: function () { state.type = "mine"; state.venue = null; render(); } },
+          h("span", { class: "cname" }, "Tus turnos"),
+          h("span", { class: "csub" }, !state.loaded ? "Cargando…" : up + (up === 1 ? " turno próximo" : " turnos próximos") + " este mes · resumen y cargas")));
+      }
+      if (state.admin) {
+        grid.appendChild(h("button", { class: "choice", onclick: openLiq },
+          h("span", { class: "cname" }, "Liquidación"),
+          h("span", { class: "csub" }, "Cuánto cobra cada persona en el mes y sus gastos extra")));
+        grid.appendChild(h("button", { class: "choice", onclick: openSede },
+          h("span", { class: "cname" }, "Reporte por sede"),
+          h("span", { class: "csub" }, "Horas, gastos extra y comprobantes de cada institución")));
+      }
+      box.appendChild(grid);
+      return;
+    }
+    cr.hidden = false;
+    cr.appendChild(h("button", { class: "crumb", onclick: goHome }, "Inicio"));
+    cr.appendChild(h("span", { class: "sep", "aria-hidden": "true" }, "›"));
+    if (state.type === "mine") { cr.appendChild(h("span", { class: "here" }, "Tus turnos")); return; }
+    cr.appendChild(h("button", { class: "crumb", onclick: function () { state.venue = null; state.confirmDel = null; state.editing = null; render(); } }, typeTitle(state.type)));
+    cr.appendChild(h("span", { class: "sep", "aria-hidden": "true" }, "›"));
+    if (!state.venue) {
+      cr.appendChild(h("span", { class: "here" }, "Elegí la sede"));
+      box.hidden = false;
+      box.appendChild(h("h2", {}, state.admin ? "Elegí la sede donde querés cargar turnos del " + typeTitle(state.type).toLowerCase() : "Elegí la sede"));
+      var g2 = h("div", { class: "choices" });
+      SEDES.forEach(function (id) {
+        var v = state.venues[id] || {};
+        g2.appendChild(h("button", { class: "choice", onclick: function () { state.venue = id; state.confirmDel = null; state.editing = null; render(); } },
+          h("span", { class: "cname" }, venueName(id)),
+          v.address ? h("span", { class: "csub" }, v.address) : null,
+          h("span", { class: "csub" }, venueSummary(state.type, id))));
+      });
+      box.appendChild(g2);
+    } else {
+      cr.appendChild(h("button", { class: "crumb", onclick: function () { state.venue = null; state.confirmDel = null; state.editing = null; render(); } }, venueName(state.venue)));
+    }
+  }
+
+  function renderVenue() {
+    var box = $("venue"); box.textContent = "";
+    box.hidden = !inSchedule();
+    if (!inSchedule()) return;
+    var v = state.venues[state.venue] || {};
+    box.appendChild(h("h2", {}, typeTitle(state.type) + " · " + venueName(state.venue)));
+    if (v.address) box.appendChild(h("span", { class: "addr" }, v.address));
+  }
+
+  function renderNotices() {
+    var box = $("notices"); box.textContent = "";
+    if (state.dbIssue) box.appendChild(h("div", { class: "notice warn" }, state.dbIssue));
+    var pend = pendingCount();
+    if (state.admin && pend > 0) box.appendChild(h("div", { class: "notice" },
+      "Tenés " + pend + (pend === 1 ? " solicitud de cuenta pendiente. " : " solicitudes de cuenta pendientes. "),
+      h("button", { class: "btn sm", onclick: function () { $("accounts").scrollIntoView({ behavior: "smooth", block: "start" }); } }, "Ver solicitudes")));
+    if (pushCanAsk()) box.appendChild(h("div", { class: "notice" }, "Activá los avisos para recibir la noche anterior (21:00) tus turnos del día siguiente. ",
+      h("button", { class: "btn sm primary", onclick: enablePush }, "Activar avisos")));
+    if (state.unreachable && !state.loaded) box.appendChild(h("div", { class: "notice warn" }, "Todavía no se pueden alcanzar los datos. Los turnos pueden estar desactualizados."));
+    if (state.canWrite === false && !state.canEdit) box.appendChild(h("div", { class: "notice" }, "Estás viendo los turnos en modo lectura. Pedile a quien organiza que te dé acceso de colaborador para poder crear tu cuenta y anotarte."));
+    else if (state.session && !state.uid) box.appendChild(h("div", { class: "notice" }, "Para anotarte tenés que iniciar sesión."));
+  }
+
+  function nameSelect(s, i, manual, users) {
+    var cur = manual[i] || "";
+    var sel = h("select", { class: "namesel", id: "nm-" + s.id + "-" + i, "aria-label": "Nombre para el cupo " + (users + i + 1) });
+    sel.appendChild(h("option", { value: "" }, "— Libre —"));
+    Object.keys(state.roster).map(function (id) { return { id: id, name: state.roster[id].name || "" }; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name, "es"); })
+      .forEach(function (r) {
+        if (r.id !== cur && manual.indexOf(r.id) !== -1) return;
+        sel.appendChild(h("option", { value: r.id, selected: r.id === cur }, r.name));
+      });
+    if (cur && !state.roster[cur]) sel.appendChild(h("option", { value: cur, selected: true }, "Sin nombre"));
+    sel.addEventListener("change", function () { setManual(s, i, sel.value); });
+    return h("div", { class: "spot" }, h("label", { class: "label", for: "nm-" + s.id + "-" + i }, "Cupo " + (users + i + 1)), sel);
+  }
+
+  async function setManual(s, i, val) {
+    var arr = manualOf(s).slice();
+    if (!val) { if (i < arr.length) arr.splice(i, 1); }
+    else if (i < arr.length) arr[i] = val; else arr.push(val);
+    try { await state.db.doc("slots/" + s.id).update({ manual: arr }); }
+    catch (e) { toast("No se pudo cambiar el nombre del cupo."); render(); }
+  }
+
+  function whoList(s, users) {
+    var me = state.session, manual = manualOf(s);
+    var total = users.length + manual.length;
+    var closed = !!state.closedWho[s.id];
+    var d = h("details", { class: "who", open: closed ? null : true });
+    d.addEventListener("toggle", function () { if (d.open) delete state.closedWho[s.id]; else state.closedWho[s.id] = 1; });
+    d.appendChild(h("summary", {}, "Anotados (" + total + " de " + s.cap + ")"));
+    var ul = h("ul", {});
+    users.forEach(function (a) {
+      var li = h("li", { class: a.username === me ? "me" : "" }, h("span", {}, a.username + (a.username === me ? " (vos)" : "")));
+      if (state.admin) li.appendChild(h("button", { class: "x", title: "Quitar a " + a.username, "aria-label": "Quitar a " + a.username, onclick: function () { removeAttendee(s, a); } }, "×"));
+      ul.appendChild(li);
+    });
+    if (state.admin) {
+      var rows = Math.max(s.cap - users.length, manual.length);
+      for (var i = 0; i < rows; i++) ul.appendChild(h("li", {}, nameSelect(s, i, manual, users.length)));
+    } else {
+      manual.forEach(function (rid) { ul.appendChild(h("li", {}, h("span", {}, rosterName(rid)))); });
+    }
+    d.appendChild(ul);
+    return d;
+  }
+
+  function editForm(s) {
+    var e = state.editing, n = "ed-" + s.id + "-";
+    var total = h("div", { class: "amount" });
+    function upd() {
+      var tmp = { type: s.type, start: e.start, end: e.end };
+      total.textContent = tmp.start && tmp.end && tmp.start !== tmp.end && slotAmount(tmp) > 0 ? "Valor final del turno: " + money(slotAmount(tmp)) : "Este fixture todavía no tiene valor por hora cargado";
+    }
+    upd();
+    function field(label, key, type, extra) {
+      var inp = h("input", Object.assign({ type: type, id: n + key, value: String(e[key]) }, extra || {}));
+      inp.addEventListener("input", function () { e[key] = inp.value; upd(); });
+      return h("div", { class: "field" }, h("label", { class: "label", for: n + key }, label), inp);
+    }
+    return h("div", { class: "editbox" },
+      field("Fecha", "date", "date"), field("Desde", "start", "time"), field("Hasta", "end", "time"),
+      field("Cupo", "cap", "number", { min: "1", max: "200" }),
+      total,
+      h("div", { class: "row" },
+        h("button", { class: "btn sm primary", onclick: saveEdit }, "Guardar"),
+        h("button", { class: "btn sm", onclick: function () { state.editing = null; render(); } }, "Cancelar")));
+  }
+
+  function slotCard(s, att) {
+    var users = att[s.id] || [];
+    var n = users.length + manualOf(s).length, full = n >= s.cap;
+    var mine = !!state.session && users.some(function (a) { return a.username === state.session; });
+    var past = endDate(s) < new Date();
+    var card = h("div", { class: "slot" + (mine ? " mine" : "") + (full ? " full" : "") + (past ? " past" : "") });
+    card.appendChild(h("div", { class: "time" }, s.start + " – " + s.end));
+    card.appendChild(h("div", { class: "hint" }, "Dura " + durationLabel(s) + (crossesMidnight(s) ? " · termina al día siguiente" : "")));
+    if (slotAmount(s) > 0) card.appendChild(h("div", { class: "amount" }, "Valor del turno: " + money(slotAmount(s))));
+
+    var vis;
+    if (s.cap <= 22) {
+      vis = h("div", { class: "dots", "aria-hidden": "true" });
+      for (var i = 0; i < s.cap; i++) vis.appendChild(h("span", { class: "dot" + (i < n ? " on" : "") }));
+    } else {
+      vis = h("div", { class: "bar", "aria-hidden": "true" }, h("i", { style: "width:" + Math.min(100, Math.round(n / s.cap * 100)) + "%" }));
+    }
+    card.appendChild(vis);
+    var left = Math.max(0, s.cap - n);
+    card.appendChild(h("div", { class: "count" }, h("span", {}, h("b", {}, String(n)), " de " + s.cap + " anotados"), h("span", {}, full ? "Completo" : left + (left === 1 ? " lugar" : " lugares"))));
+
+    if (mine) card.appendChild(h("div", { class: "tag" }, "Estás anotado"));
+    var canAct = state.session && state.uid && state.canWrite !== false && !past;
+    if (canAct) {
+      if (mine) card.appendChild(h("button", { class: "btn", disabled: state.busy, onclick: function () { toggle(s); } }, "Salir del turno"));
+      else if (full) card.appendChild(h("button", { class: "btn", disabled: true }, "Completo"));
+      else card.appendChild(h("button", { class: "btn primary", disabled: state.busy, onclick: function () { toggle(s); } }, "Anotarme"));
+    } else if (past) {
+      card.appendChild(h("div", { class: "hint" }, "Turno finalizado"));
+    } else if (!state.session && state.canWrite !== false) {
+      card.appendChild(h("button", { class: "btn", onclick: function () { openAuth("login"); } }, "Ingresar para anotarme"));
+    }
+
+    if (n > 0 || state.admin) card.appendChild(whoList(s, users));
+
+    if (state.admin) {
+      var capIn = h("input", { type: "number", min: "1", max: "200", value: String(s.cap), "aria-label": "Cupo del turno", id: "cap-" + s.id });
+      capIn.addEventListener("change", function () {
+        var v = Math.max(1, Math.min(200, parseInt(capIn.value, 10) || 1));
+        state.db.doc("slots/" + s.id).update({ cap: v }).catch(function () { toast("No se pudo cambiar el cupo."); });
+      });
+      var del = state.confirmDel === s.id
+        ? h("span", { class: "adminrow", style: "border:0;padding:0" }, h("button", { class: "btn sm danger", onclick: function () { removeSlot(s); } }, "Sí, borrar"), h("button", { class: "btn sm", onclick: function () { state.confirmDel = null; render(); } }, "No"))
+        : h("button", { class: "btn sm", onclick: function () { state.confirmDel = s.id; render(); } }, "Borrar");
+      if (state.editing && state.editing.id === s.id) card.appendChild(editForm(s));
+      else card.appendChild(h("div", { class: "adminrow" }, h("label", {}, "Cupo", capIn),
+        h("button", { class: "btn sm", onclick: function () { state.editing = { id: s.id, date: s.date, start: s.start, end: s.end, cap: s.cap }; state.confirmDel = null; render(); } }, "Editar"), del));
+    }
+    return card;
+  }
+
+  function renderDays() {
+    var box = $("days"); box.textContent = "";
+    box.hidden = !inSchedule();
+    if (!inSchedule()) return;
+    if (!state.loaded) { box.appendChild(h("p", { class: "none" }, "Cargando turnos…")); return; }
+    var att = attendees(), todayIso = iso(new Date());
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(state.week, i), key = iso(d);
+      var slots = state.slots.filter(function (s) { return s.type === state.type && s.venue === state.venue && s.date === key; })
+        .sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : a.end < b.end ? -1 : 1; });
+      var wrap = h("div", { class: "slots" });
+      if (!slots.length) wrap.appendChild(h("div", { class: "none" }, "Sin turnos"));
+      slots.forEach(function (s) { wrap.appendChild(slotCard(s, att)); });
+      box.appendChild(h("div", { class: "day" + (key === todayIso ? " today" : "") },
+        h("div", { class: "dayname" }, DOW[i], h("small", {}, d.getDate() + " " + MES[d.getMonth()])), wrap));
+    }
+  }
+
+  function renderRange() {
+    $("weeknav").hidden = !inSchedule();
+    var a = state.week, b = addDays(a, 6);
+    $("range").textContent = a.getDate() + (a.getMonth() !== b.getMonth() ? " " + MES[a.getMonth()] : "") + " – " + b.getDate() + " " + MES[b.getMonth()] + " " + b.getFullYear();
+    $("dayspick").querySelectorAll("span.dl").forEach(function (el, i) { el.textContent = DOW[i] + " " + addDays(a, i).getDate(); });
+  }
+
+  function renderAdmin() {
+    var show = state.admin && inSchedule();
+    $("admin").hidden = !show;
+    if (!show) { state.adminVenueShown = null; return; }
+    $("addlabel").textContent = "Agregar turnos a " + typeTitle(state.type) + " · " + venueName(state.venue) + " (semana mostrada)";
+    if (state.adminVenueShown !== state.venue) {
+      var v = state.venues[state.venue] || {};
+      $("vname").value = v.name || ""; $("vname").placeholder = venueName(state.venue);
+      $("vaddr").value = v.address || "";
+      state.adminVenueShown = state.venue;
+    }
+  }
+
+  // ---- Tus turnos ----
+  // Cada turno en el que estás anotado aparece solo. Una carga (reports/<uid>/entries/<usuario>__<turno>) existe
+  // únicamente si corregiste horas o cargaste gastos; si no, se usa el horario programado.
+  var PHOTO_MAX = 190000; // largo máximo del data URL de la foto, para entrar en un documento
+  function entryId(username, slotId) { return username + "__" + slotId; }
+  function myEntry(s) { return state.reportMap[entryId(state.session, s.id)] || null; }
+  // El turno con las horas reales si la persona las corrigió; si no, el horario programado.
+  function effective(s, en) {
+    return { id: s.id, type: s.type, venue: s.venue, date: s.date, start: en && en.start ? en.start : s.start, end: en && en.end ? en.end : s.end };
+  }
+  function monthItems() {
+    return mySlots().filter(function (s) { return inCurMonth(s.date); }).map(function (s) { var en = myEntry(s); return { s: s, en: en, e: effective(s, en) }; });
+  }
+
+  function photoBlock(uid, id) {
+    var box = h("div", { class: "photo" });
+    var btn = h("button", { class: "btn sm", type: "button" }, "Ver foto");
+    btn.addEventListener("click", async function () {
+      btn.disabled = true;
+      try {
+        var snap = await state.db.doc("reports/" + uid + "/photos/" + id).get(), d = snap.exists ? snap.data() : null;
+        if (d && d.data) { box.textContent = ""; box.appendChild(h("img", { src: d.data, alt: "Foto del gasto extra", class: "receipt" })); }
+        else { btn.disabled = false; toast("No se encontró la foto."); }
+      } catch (e) { btn.disabled = false; toast("No se pudo cargar la foto."); }
+    });
+    box.appendChild(btn);
+    return box;
+  }
+
+  function processImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//.test(file.type)) return reject(new Error("Elegí un archivo de imagen."));
+      var fr = new FileReader();
+      fr.onerror = function () { reject(new Error("No se pudo leer la imagen.")); };
+      fr.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error("No se pudo abrir esa imagen. Probá con una foto en JPG o PNG.")); };
+        img.onload = function () {
+          var size = 1000, q = 0.7;
+          for (var tries = 0; tries < 6; tries++) {
+            var sc = Math.min(1, size / Math.max(img.width, img.height));
+            var c = document.createElement("canvas");
+            c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+            c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+            var out = c.toDataURL("image/jpeg", q);
+            if (out.length <= PHOTO_MAX) return resolve(out);
+            size = Math.round(size * 0.8); q = Math.max(0.4, q - 0.05);
+          }
+          reject(new Error("La foto es demasiado pesada. Probá con otra."));
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  function openMineEdit(it) {
+    var en = it.en, e = it.e;
+    state.mineEdit = { id: it.s.id, start: e.start, end: e.end, expense: en && en.expense ? String(en.expense) : "", comment: en ? en.comment || "" : "", hasPhoto: !!(en && en.hasPhoto), photo: undefined, busy: false };
+    renderMine();
+  }
+
+  function mineEditForm(it) {
+    var s = it.s, m = state.mineEdit, n = "me-" + s.id + "-", inputs = {};
+    var total = h("div", { class: "amount" });
+    function upd() {
+      if (!(Number(state.rates[s.type]) > 0)) { total.textContent = "Este fixture todavía no tiene valor por hora cargado."; return; }
+      total.textContent = m.start && m.end && m.start !== m.end ? "Valor con estas horas: " + money(slotAmount({ type: s.type, start: m.start, end: m.end })) : "";
+    }
+    function field(label, key, type, extra) {
+      var inp = h("input", Object.assign({ type: type, id: n + key, value: String(m[key]) }, extra || {}));
+      inp.addEventListener("input", function () { m[key] = inp.value; upd(); });
+      inputs[key] = inp;
+      return h("div", { class: "field" }, h("label", { class: "label", for: n + key }, label), inp);
+    }
+    var ta = h("textarea", { id: n + "comment", maxlength: "500" });
+    ta.value = m.comment;
+    ta.addEventListener("input", function () { m.comment = ta.value; });
+
+    var photoBox = h("div", { class: "photoedit" });
+    function drawPhoto() {
+      photoBox.textContent = "";
+      if (typeof m.photo === "string") {
+        photoBox.appendChild(h("img", { src: m.photo, alt: "Vista previa de la foto", class: "receipt" }));
+        photoBox.appendChild(h("button", { class: "btn sm", type: "button", onclick: function () { m.photo = m.hasPhoto ? null : undefined; drawPhoto(); } }, "Quitar foto"));
+      } else if (m.hasPhoto && m.photo === undefined) {
+        photoBox.appendChild(h("p", { class: "hint" }, "Ya hay una foto cargada."));
+        photoBox.appendChild(photoBlock(state.uid, entryId(state.session, s.id)));
+        photoBox.appendChild(h("button", { class: "btn sm", type: "button", onclick: function () { m.photo = null; drawPhoto(); } }, "Quitar foto"));
+      } else photoBox.appendChild(h("p", { class: "hint" }, "Sin foto."));
+    }
+    var fi = h("input", { type: "file", accept: "image/*", id: n + "file" });
+    fi.addEventListener("change", async function () {
+      var f = fi.files && fi.files[0];
+      if (!f) return;
+      try { m.photo = await processImage(f); drawPhoto(); } catch (e) { toast(e.message || "No se pudo usar esa foto."); }
+      fi.value = "";
+    });
+    drawPhoto(); upd();
+
+    return h("div", { class: "editbox" },
+      field("Hora de comienzo real", "start", "time"),
+      field("Hora de finalización real", "end", "time"),
+      h("div", {}, h("button", { class: "btn sm", type: "button", onclick: function () {
+        m.start = s.start; m.end = s.end; inputs.start.value = s.start; inputs.end.value = s.end; upd();
+      } }, "Usar el horario programado (" + s.start + " – " + s.end + ")")),
+      total,
+      field("Gasto extra ($)", "expense", "number", { min: "0", step: "0.01", placeholder: "0" }),
+      h("div", { class: "field" }, h("label", { class: "label", for: n + "comment" }, "Comentarios extras"), ta),
+      h("div", { class: "field" }, h("label", { class: "label", for: n + "file" }, "Foto del gasto extra (opcional)"), fi),
+      photoBox,
+      h("div", { class: "row" },
+        h("button", { class: "btn sm primary", type: "button", disabled: m.busy, onclick: function () { saveMineEdit(s); } }, "Guardar"),
+        h("button", { class: "btn sm", type: "button", onclick: function () { state.mineEdit = null; renderMine(); } }, "Cancelar")));
+  }
+
+  async function saveMineEdit(s) {
+    var m = state.mineEdit;
+    if (!m || m.busy) return;
+    if (!state.session || !state.uid || !state.db) return toast("Para guardar tenés que ingresar con tu cuenta.");
+    var exp = parseFloat(String(m.expense).replace(",", ".")); if (isNaN(exp)) exp = 0;
+    if (!m.start || !m.end) return toast("Completá la hora de comienzo y la de finalización.");
+    if (m.start === m.end) return toast("La hora de comienzo y la de finalización no pueden ser iguales.");
+    if (exp < 0) return toast("El gasto extra no puede ser negativo.");
+    var id = entryId(state.session, s.id), base = "reports/" + state.uid, now = new Date().toISOString();
+    var hasPhoto = m.photo === undefined ? m.hasPhoto : !!m.photo;
+    m.busy = true; renderMine();
+    try {
+      if (typeof m.photo === "string") await state.db.doc(base + "/photos/" + id).set({ data: m.photo, updated: now });
+      else if (m.photo === null && m.hasPhoto) await state.db.doc(base + "/photos/" + id).delete();
+      await state.db.doc(base + "/entries/" + id).set({ username: state.session, slotId: s.id, date: s.date, start: m.start, end: m.end, expense: Math.round(exp * 100) / 100, comment: m.comment.trim(), hasPhoto: hasPhoto, updated: now });
+      state.mineEdit = null; toast("Guardado.");
+    } catch (e) { m.busy = false; toast("No se pudo guardar. Probá de nuevo."); }
+    renderMine();
+  }
+
+  function shiftRow(it) {
+    var s = it.s, en = it.en, e = it.e;
+    var edited = !!en && (en.start !== s.start || en.end !== s.end);
+    var editing = !!state.mineEdit && state.mineEdit.id === s.id;
+    var row = h("div", { class: "myrow" },
+      h("div", { class: "when" }, longDate(s.date) + " · " + e.start + " – " + e.end),
+      h("div", { class: "where" }, typeTitle(s.type) + " · " + venueName(s.venue) + " · Dura " + durationLabel(e) + (slotAmount(e) > 0 ? " · Valor: " + money(slotAmount(e)) : "")),
+      edited ? h("div", { class: "hint" }, "Horario programado: " + s.start + " – " + s.end) : null,
+      en && en.expense > 0 ? h("div", {}, "Gasto extra: " + money(en.expense)) : null,
+      en && en.comment ? h("div", { class: "comment" }, en.comment) : null,
+      en && en.hasPhoto && !editing ? photoBlock(state.uid, entryId(state.session, s.id)) : null);
+    if (editing) row.appendChild(mineEditForm(it));
+    else row.appendChild(h("div", {}, h("button", { class: "btn sm", onclick: function () { openMineEdit(it); } }, en ? "Editar horas y gastos" : "Corregir horas o cargar gastos")));
+    return row;
+  }
+
+  function renderMine() {
+    var show = state.type === "mine" && !!state.session && !needLogin() && !state.dbIssue;
+    $("mine").hidden = !show;
+    if (!show) return;
+    var now = new Date(), label = curMonthLabel();
+    $("minetitle").textContent = "Tus turnos de " + label;
+
+    var items = monthItems();
+    var up = items.filter(function (it) { return endDate(it.e) >= now; });
+    var done = items.filter(function (it) { return endDate(it.e) < now; }).reverse();
+    var earned = done.reduce(function (a, it) { return a + slotAmount(it.e); }, 0);
+    var mins = done.reduce(function (a, it) { return a + durMinutes(it.e); }, 0);
+    var planned = up.reduce(function (a, it) { return a + slotAmount(it.e); }, 0);
+    var noValue = items.filter(function (it) { return !slotAmount(it.e); }).length;
+    var spent = items.reduce(function (a, it) { return a + (it.en ? Number(it.en.expense) || 0 : 0); }, 0);
+    var nExp = items.filter(function (it) { return it.en && it.en.expense > 0; }).length;
+
+    function stat(lbl, val, sub, big) {
+      return h("div", { class: "stat" + (big ? " big" : "") }, h("span", { class: "label" }, lbl), h("span", { class: "sv" }, val), h("span", { class: "ss" }, sub));
+    }
+    var sum = $("minesum"); sum.textContent = "";
+    sum.appendChild(h("div", {}, h("div", { class: "label" }, "Resumen del mes"), h("h2", {}, label.charAt(0).toUpperCase() + label.slice(1))));
+    if (!state.loaded) sum.appendChild(h("p", { class: "none" }, "Cargando…"));
+    else {
+      var st = h("div", { class: "stats" });
+      st.appendChild(stat("Ganado en el mes", money(earned), "Turnos ya realizados, con tus horas reales", true));
+      st.appendChild(stat("Turnos realizados", String(done.length), fmtMins(mins) + " en total"));
+      st.appendChild(stat("Próximos este mes", String(up.length), planned > 0 ? money(planned) + " por ganar" : "Sin valor cargado"));
+      st.appendChild(stat("Gastos extra cargados", money(spent), nExp + (nExp === 1 ? " turno con gasto" : " turnos con gasto")));
+      sum.appendChild(st);
+      if (noValue) sum.appendChild(h("p", { class: "hint" }, noValue + (noValue === 1 ? " turno de este mes todavía no tiene valor cargado y no suma." : " turnos de este mes todavía no tienen valor cargado y no suman.")));
+      sum.appendChild(h("p", { class: "hint" }, "Acá ves solo el mes corriente."));
+    }
+
+    var box = $("minelist"); box.textContent = "";
+    if (!state.loaded) { box.appendChild(h("p", { class: "none" }, "Cargando turnos…")); return; }
+    box.appendChild(h("h3", {}, "Próximos (" + up.length + ")"));
+    if (!up.length) box.appendChild(h("p", { class: "hint" }, "No tenés turnos próximos este mes. Anotate desde los fixtures."));
+    up.forEach(function (it) { box.appendChild(shiftRow(it)); });
+    var det = h("details", { class: "who", open: done.length ? true : null }, h("summary", {}, "Ya realizados (" + done.length + ")"));
+    if (!done.length) det.appendChild(h("p", { class: "hint" }, "Todavía no realizaste turnos este mes."));
+    done.forEach(function (it) { det.appendChild(shiftRow(it)); });
+    box.appendChild(det);
+  }
+
+  // ---- valor por hora por fixture (administrador) ----
+  function renderRates() {
+    $("ratespanel").hidden = !state.admin;
+    if (!state.admin) return;
+    TYPES.forEach(function (t) {
+      var inp = $("rate-" + t.id);
+      if (document.activeElement === inp) return;
+      var v = Number(state.rates[t.id]) || 0;
+      inp.value = v > 0 ? String(v) : "";
+    });
+  }
+
+  async function saveRates() {
+    if (!state.admin) return;
+    var out = {}, bad = false;
+    TYPES.forEach(function (t) {
+      var v = $("rate-" + t.id).value, r = v === "" ? 0 : parseFloat(String(v).replace(",", "."));
+      if (isNaN(r) || r < 0) bad = true; else out[t.id] = Math.round(r * 100) / 100;
+    });
+    if (bad) return toast("Revisá los valores: no pueden ser negativos.");
+    $("saverates").disabled = true;
+    try {
+      for (var i = 0; i < TYPES.length; i++) await state.db.doc("rates/" + TYPES[i].id).set({ rate: out[TYPES[i].id] });
+      toast("Valores guardados.");
+    } catch (e) { toast("No se pudieron guardar los valores."); }
+    $("saverates").disabled = false;
+  }
+
+  // ---- liquidación del mes (administrador) ----
+  function liqRange() { if (state.liqMonth) return state.liqMonth; var n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; }
+
+  async function loadLiq() {
+    if (!state.admin || !state.db || state.liqBusy) return;
+    state.liqBusy = true; renderLiq(); renderSedes();
+    var out = {};
+    try {
+      var uids = Object.keys(state.signupDocs);
+      for (var i = 0; i < uids.length; i++) {
+        var uid = uids[i], snap = await state.db.collection("reports/" + uid + "/entries").get();
+        snap.docs.forEach(function (d) {
+          var x = d.data() || {};
+          out[uid + "|" + d.id] = { start: x.start || "", end: x.end || "", expense: Number(x.expense) || 0, comment: x.comment || "", hasPhoto: !!x.hasPhoto };
+        });
+      }
+      state.liqEntries = out; state.liqLoaded = true;
+    } catch (e) { toast("No se pudieron leer todas las cargas."); }
+    state.liqBusy = false; renderLiq(); renderSedes();
+  }
+
+  function openLiq() {
+    var p = $("liqpanel");
+    p.hidden = false; p.open = true;
+    loadLiq();
+    p.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function renderLiq() {
+    var box = $("liqpanel"); box.hidden = !state.admin;
+    if (!state.admin) return;
+    var lm = liqRange(), key = lm.y + "-" + pad(lm.m + 1);
+    $("liqlabel").textContent = MESES[lm.m].charAt(0).toUpperCase() + MESES[lm.m].slice(1) + " " + lm.y;
+    var body = $("liqbody"); body.textContent = "";
+    if (!state.liqLoaded) { body.appendChild(h("p", { class: "hint" }, state.liqBusy ? "Cargando las cargas de cada usuario…" : "Tocá Actualizar para leer las cargas.")); return; }
+    var now = new Date(), att = attendees(), per = {};
+    state.slots.forEach(function (s) {
+      if (String(s.date).slice(0, 7) !== key) return;
+      (att[s.id] || []).forEach(function (a) {
+        var en = state.liqEntries[a.uid + "|" + entryId(a.username, s.id)] || null;
+        (per[a.username] = per[a.username] || []).push({ s: s, en: en, e: effective(s, en), uid: a.uid });
+      });
+    });
+    var names = Object.keys(per).sort();
+    if (!names.length) { body.appendChild(h("p", { class: "hint" }, "No hay turnos con gente anotada en este mes.")); return; }
+
+    var rows = names.map(function (u) {
+      var its = per[u].sort(function (a, b) { var ka = a.s.date + a.e.start, kb = b.s.date + b.e.start; return ka < kb ? -1 : ka > kb ? 1 : 0; });
+      var done = its.filter(function (it) { return endDate(it.e) < now; });
+      return {
+        u: u, its: its, done: done,
+        earned: done.reduce(function (a, it) { return a + slotAmount(it.e); }, 0),
+        mins: done.reduce(function (a, it) { return a + durMinutes(it.e); }, 0),
+        projected: its.reduce(function (a, it) { return a + slotAmount(it.e); }, 0),
+        spent: its.reduce(function (a, it) { return a + (it.en ? it.en.expense : 0); }, 0)
+      };
+    });
+    var T = rows.reduce(function (a, r) { a.earned += r.earned; a.projected += r.projected; a.spent += r.spent; a.mins += r.mins; a.done += r.done.length; a.all += r.its.length; return a; }, { earned: 0, projected: 0, spent: 0, mins: 0, done: 0, all: 0 });
+    var noValue = rows.reduce(function (a, r) { return a + r.its.filter(function (it) { return !slotAmount(it.e); }).length; }, 0);
+
+    body.appendChild(h("div", { class: "total" },
+      h("span", {}, names.length + (names.length === 1 ? " persona" : " personas")),
+      h("span", {}, "Hasta hoy: " + money(T.earned) + " · Previsto a fin de mes: " + money(T.projected) + " · Gastos extra: " + money(T.spent))));
+
+    function cell(txt, tag) { return h(tag || "td", {}, txt); }
+    var thead = h("thead", {}, h("tr", {}, cell("Persona", "th"), cell("Turnos", "th"), cell("Horas", "th"), cell("Cobra hasta hoy", "th"), cell("Previsto a fin de mes", "th"), cell("Gastos extra", "th")));
+    var tbody = h("tbody", {});
+    rows.forEach(function (r) {
+      tbody.appendChild(h("tr", {}, cell(r.u), cell(r.done.length + " de " + r.its.length), cell(fmtMins(r.mins)), cell(money(r.earned)), cell(money(r.projected)), cell(money(r.spent))));
+    });
+    var tfoot = h("tfoot", {}, h("tr", {}, cell("Total"), cell(T.done + " de " + T.all), cell(fmtMins(T.mins)), cell(money(T.earned)), cell(money(T.projected)), cell(money(T.spent))));
+    body.appendChild(h("div", { class: "tablewrap" }, h("table", { class: "liqtable" }, thead, tbody, tfoot)));
+    if (noValue) body.appendChild(h("p", { class: "hint" }, noValue + (noValue === 1 ? " turno del mes no suma porque su fixture no tiene valor por hora cargado." : " turnos del mes no suman porque su fixture no tiene valor por hora cargado.")));
+
+    body.appendChild(h("div", { class: "label" }, "Detalle por persona"));
+    var list = h("div", { class: "accbody" });
+    rows.forEach(function (r) {
+      var d = h("details", { class: "who" }, h("summary", {}, r.u + " · cobra hasta hoy " + money(r.earned) + " · gastos extra " + money(r.spent)));
+      r.its.forEach(function (it) {
+        var s = it.s, e = it.e, en = it.en, edited = !!en && (en.start !== s.start || en.end !== s.end), finished = endDate(e) < now;
+        d.appendChild(h("div", { class: "myrow" },
+          h("div", { class: "when" }, longDate(s.date) + " · " + e.start + " – " + e.end + (finished ? "" : " (próximo, todavía no suma)")),
+          h("div", { class: "where" }, typeTitle(s.type) + " · " + venueName(s.venue) + " · Dura " + durationLabel(e) + (slotAmount(e) > 0 ? " · Valor: " + money(slotAmount(e)) : " · Sin valor cargado")),
+          edited ? h("div", { class: "hint" }, "Corregido por la persona. Horario programado: " + s.start + " – " + s.end) : null,
+          en && en.expense > 0 ? h("div", {}, "Gasto extra: " + money(en.expense)) : null,
+          en && en.comment ? h("div", { class: "comment" }, en.comment) : null,
+          en && en.hasPhoto ? photoBlock(it.uid, entryId(r.u, s.id)) : null));
+      });
+      list.appendChild(d);
+    });
+    body.appendChild(list);
+  }
+
+  // ---- reporte por sede (administrador) ----
+  function sedeRange() { if (state.sedeMonth) return state.sedeMonth; var n = new Date(); return { y: n.getFullYear(), m: n.getMonth() }; }
+
+  function openSede() {
+    var p = $("sedepanel");
+    p.hidden = false; p.open = true;
+    loadLiq();
+    p.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Una fila por persona y turno del mes: usuarios con sus horas reales (si las corrigieron) y
+  // nombres de la lista (sin cuenta) con el horario programado.
+  function collectMonth(key) {
+    var att = attendees(), out = [];
+    state.slots.forEach(function (s) {
+      if (String(s.date).slice(0, 7) !== key) return;
+      (att[s.id] || []).forEach(function (a) {
+        var en = state.liqEntries[a.uid + "|" + entryId(a.username, s.id)] || null;
+        out.push({ s: s, e: effective(s, en), en: en, uid: a.uid, name: a.username, manual: false });
+      });
+      manualOf(s).forEach(function (rid) { out.push({ s: s, e: effective(s, null), en: null, uid: null, name: rosterName(rid), manual: true }); });
+    });
+    return out;
+  }
+
+  function statTile(lbl, val, sub, big) {
+    return h("div", { class: "stat" + (big ? " big" : "") }, h("span", { class: "label" }, lbl), h("span", { class: "sv" }, val), h("span", { class: "ss" }, sub));
+  }
+  function sumBy(arr, fn) { return arr.reduce(function (a, it) { return a + fn(it); }, 0); }
+  function distinctSlots(arr) { var m = {}; arr.forEach(function (it) { m[it.s.id] = 1; }); return Object.keys(m).length; }
+
+  function sedeCard(vid, its, now, label) {
+    var done = its.filter(function (it) { return endDate(it.e) < now; });
+    var mins = sumBy(done, function (it) { return durMinutes(it.e); });
+    var earned = sumBy(done, function (it) { return slotAmount(it.e); });
+    var projected = sumBy(its, function (it) { return slotAmount(it.e); });
+    var spent = sumBy(its, function (it) { return it.en ? it.en.expense : 0; });
+    var noValue = its.filter(function (it) { return !slotAmount(it.e); }).length;
+    var v = state.venues[vid] || {};
+    var d = h("details", { class: "panel sedecard", open: its.length ? true : null });
+    d.appendChild(h("summary", {}, h("span", { class: "sumtitle" }, venueName(vid)),
+      h("span", { class: "hint" }, its.length ? fmtMins(mins) + " · " + money(earned + spent) + " hasta hoy" : "Sin turnos con gente anotada")));
+    if (!its.length) return d;
+    if (v.address) d.appendChild(h("p", { class: "hint" }, v.address));
+
+    var st = h("div", { class: "stats" });
+    st.appendChild(statTile("Horas realizadas", fmtMins(mins), distinctSlots(done) + " de " + distinctSlots(its) + " turnos hechos"));
+    st.appendChild(statTile("Valor de las horas", money(earned), "Hasta hoy, con las horas reales", true));
+    st.appendChild(statTile("Gastos extra", money(spent), "Cargados por las personas"));
+    st.appendChild(statTile("Total hasta hoy", money(earned + spent), "Horas + gastos extra"));
+    st.appendChild(statTile("Previsto a fin de mes", money(projected + spent), "Incluye los turnos que faltan"));
+    d.appendChild(st);
+    if (noValue) d.appendChild(h("p", { class: "hint" }, noValue + (noValue === 1 ? " horario no suma porque su fixture no tiene valor por hora cargado." : " horarios no suman porque su fixture no tiene valor por hora cargado.")));
+
+    // por fixture
+    function cell(txt, tag) { return h(tag || "td", {}, txt); }
+    var tb = h("tbody", {}), fx = [];
+    TYPES.forEach(function (t) {
+      var ti = its.filter(function (it) { return it.s.type === t.id; });
+      if (!ti.length) return;
+      var td = ti.filter(function (it) { return endDate(it.e) < now; });
+      var row = { t: t, slots: distinctSlots(ti), mins: sumBy(td, function (it) { return durMinutes(it.e); }), earned: sumBy(td, function (it) { return slotAmount(it.e); }), projected: sumBy(ti, function (it) { return slotAmount(it.e); }) };
+      fx.push(row);
+      tb.appendChild(h("tr", {}, cell(t.title), cell(String(row.slots)), cell(fmtMins(row.mins)), cell(money(row.earned)), cell(money(row.projected))));
+    });
+    d.appendChild(h("div", { class: "tablewrap" }, h("table", { class: "liqtable" },
+      h("thead", {}, h("tr", {}, cell("Fixture", "th"), cell("Turnos", "th"), cell("Horas realizadas", "th"), cell("Valor hasta hoy", "th"), cell("Previsto", "th"))), tb)));
+
+    // detalle por turno
+    var bySlot = {};
+    its.forEach(function (it) { (bySlot[it.s.id] = bySlot[it.s.id] || []).push(it); });
+    var groups = Object.keys(bySlot).map(function (id) { return bySlot[id]; })
+      .sort(function (a, b) { var ka = a[0].s.date + a[0].s.start, kb = b[0].s.date + b[0].s.start; return ka < kb ? -1 : ka > kb ? 1 : 0; });
+    var det = h("details", { class: "who" }, h("summary", {}, "Detalle de turnos (" + groups.length + ")"));
+    groups.forEach(function (g) {
+      var s = g[0].s;
+      var blk = h("div", { class: "myrow" }, h("div", { class: "when" }, longDate(s.date) + " · " + typeTitle(s.type) + " · programado " + s.start + " – " + s.end));
+      g.forEach(function (it) {
+        var edited = !!it.en && (it.en.start !== s.start || it.en.end !== s.end);
+        blk.appendChild(h("div", {}, it.name + (it.manual ? " (sin cuenta)" : "") + " · " + it.e.start + " – " + it.e.end + (edited ? " (corregido)" : "") + " · " + durationLabel(it.e) +
+          (slotAmount(it.e) > 0 ? " · " + money(slotAmount(it.e)) : " · sin valor") + (it.en && it.en.expense > 0 ? " · gasto " + money(it.en.expense) : "")));
+        if (it.en && it.en.comment) blk.appendChild(h("div", { class: "hint comment" }, it.en.comment));
+      });
+      det.appendChild(blk);
+    });
+    d.appendChild(det);
+
+    // gastos extra y comprobantes
+    var ex = its.filter(function (it) { return it.en && (it.en.hasPhoto || it.en.expense > 0); });
+    var dex = h("details", { class: "who" }, h("summary", {}, "Gastos extra y comprobantes (" + ex.length + ")"));
+    if (!ex.length) dex.appendChild(h("p", { class: "hint" }, "Nadie cargó gastos extra en esta sede este mes."));
+    ex.forEach(function (it) {
+      dex.appendChild(h("div", { class: "myrow" },
+        h("div", { class: "when" }, it.name + " · " + longDate(it.s.date) + " · " + money(it.en.expense)),
+        h("div", { class: "where" }, typeTitle(it.s.type) + (it.en.comment ? " · " + it.en.comment : "")),
+        it.en.hasPhoto ? photoBlock(it.uid, entryId(it.name, it.s.id)) : h("div", { class: "hint" }, "Sin comprobante")));
+    });
+    d.appendChild(dex);
+
+    // copiar resumen
+    var lines = ["Reporte de " + label + " · " + venueName(vid)];
+    if (v.address) lines.push(v.address);
+    lines.push("Horas realizadas: " + fmtMins(mins));
+    fx.forEach(function (r) { lines.push("  " + r.t.title + ": " + fmtMins(r.mins) + " · " + money(r.earned)); });
+    lines.push("Valor de las horas (hasta hoy): " + money(earned), "Gastos extra: " + money(spent), "Total hasta hoy: " + money(earned + spent), "Previsto a fin de mes: " + money(projected + spent));
+    d.appendChild(h("div", {}, h("button", { class: "btn sm", type: "button", onclick: function () {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) return toast("Este navegador no permite copiar desde la página.");
+      navigator.clipboard.writeText(lines.join("\n")).then(function () { toast("Resumen copiado."); }, function () { toast("No se pudo copiar el resumen."); });
+    } }, "Copiar resumen")));
+    return d;
+  }
+
+  function renderSedes() {
+    var box = $("sedepanel"); box.hidden = !state.admin;
+    if (!state.admin) return;
+    var lm = sedeRange(), key = lm.y + "-" + pad(lm.m + 1);
+    var label = MESES[lm.m] + " " + lm.y;
+    $("sedelabel").textContent = label.charAt(0).toUpperCase() + label.slice(1);
+    var body = $("sedebody"); body.textContent = "";
+    if (!state.liqLoaded) { body.appendChild(h("p", { class: "hint" }, state.liqBusy ? "Cargando las cargas de cada usuario…" : "Tocá Actualizar para leer las cargas.")); return; }
+    var now = new Date(), all = collectMonth(key);
+    SEDES.forEach(function (vid) { body.appendChild(sedeCard(vid, all.filter(function (it) { return it.s.venue === vid; }), now, label)); });
+  }
+
+  // ---- lista de nombres (administrador) ----
+  function renderRoster() {
+    var box = $("rosterpanel");
+    box.hidden = !state.admin;
+    if (!state.admin) return;
+    var ids = Object.keys(state.roster).sort(function (a, b) { return (state.roster[a].name || "").localeCompare(state.roster[b].name || "", "es"); });
+    $("rostercount").textContent = String(ids.length);
+    var list = $("rosterlist"); list.textContent = "";
+    if (!ids.length) list.appendChild(h("p", { class: "hint" }, "Todavía no hay nombres. Agregá el primero arriba."));
+    ids.forEach(function (id) {
+      var inp = h("input", { type: "text", value: state.roster[id].name || "", maxlength: "40", id: "rn-" + id, "aria-label": "Nombre" });
+      inp.addEventListener("change", function () { renameRoster(id, inp); });
+      var act = state.confirmRoster === id
+        ? h("span", { class: "row" }, h("button", { class: "btn sm danger", type: "button", onclick: function () { removeRoster(id); } }, "Sí, quitar"), h("button", { class: "btn sm", type: "button", onclick: function () { state.confirmRoster = null; renderRoster(); } }, "No"))
+        : h("button", { class: "btn sm", type: "button", onclick: function () { state.confirmRoster = id; renderRoster(); } }, "Quitar");
+      list.appendChild(h("div", { class: "accrow" }, h("div", { class: "field", style: "flex:1 1 180px" }, inp), act));
+    });
+  }
+
+  function dupName(name, skipId) {
+    var low = name.toLowerCase();
+    return Object.keys(state.roster).some(function (id) { return id !== skipId && (state.roster[id].name || "").toLowerCase() === low; });
+  }
+
+  async function addRoster() {
+    var inp = $("rname-new"), name = inp.value.trim();
+    if (!name) return toast("Escribí un nombre.");
+    if (dupName(name, null)) return toast("Ese nombre ya está en la lista.");
+    var id = "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    try { await state.db.doc("roster/" + id).set({ name: name }); inp.value = ""; toast("Nombre agregado."); inp.focus(); }
+    catch (e) { toast("No se pudo agregar el nombre."); }
+  }
+
+  async function renameRoster(id, inp) {
+    var name = inp.value.trim();
+    if (!name) { inp.value = state.roster[id].name || ""; return toast("El nombre no puede quedar vacío."); }
+    if (dupName(name, id)) { inp.value = state.roster[id].name || ""; return toast("Ese nombre ya está en la lista."); }
+    try { await state.db.doc("roster/" + id).update({ name: name }); toast("Nombre actualizado."); }
+    catch (e) { toast("No se pudo cambiar el nombre."); }
+  }
+
+  async function removeRoster(id) {
+    state.confirmRoster = null;
+    try {
+      await state.db.doc("roster/" + id).delete();
+      var hit = state.slots.filter(function (s) { return manualOf(s).indexOf(id) !== -1; });
+      for (var i = 0; i < hit.length; i++) {
+        await state.db.doc("slots/" + hit[i].id).update({ manual: manualOf(hit[i]).filter(function (x) { return x !== id; }) });
+      }
+      toast("Nombre quitado de la lista y de los turnos.");
+    } catch (e) { toast("No se pudo quitar el nombre."); }
+  }
+
+  function render() {
+    renderSession(); renderAuth(); renderStage(); renderVenue(); renderNotices(); renderRange(); renderDays(); renderMine(); renderAccounts(); renderAdmin();
+  }
+
+  // ---- solicitudes de cuenta (administrador) ----
+  function pendingCount() {
+    if (!state.accountsLoaded || !state.approvedLoaded) return 0;
+    return Object.keys(state.accounts).filter(function (u) { return !state.approved[u]; }).length;
+  }
+
+  async function approve(u) {
+    try {
+      var uid = state.userByName[u];
+      await state.db.doc("users/" + uid).update({ approved: true, role: state.accounts[u] === "admin" ? "admin" : "member" });
+      toast("Aprobaste a " + u + (state.accounts[u] === "admin" ? " como administrador." : "."));
+    } catch (e) { toast("No se pudo aprobar la cuenta."); }
+  }
+
+  async function removeAccount(u) {
+    state.confirmAcc = null;
+    if (u === state.session) { toast("No podés quitarte el acceso a vos mismo."); renderAccounts(); return; }
+    try {
+      var uid = state.userByName[u];
+      await state.db.doc("users/" + uid).delete();
+      await state.db.doc("usernames/" + u).delete();
+      try { await state.db.doc("signups/" + uid).delete(); } catch (e2) {}
+      toast("Se quitó la cuenta " + u + " y sus anotaciones.");
+    } catch (e) { toast("No se pudo quitar la cuenta."); }
+    renderAccounts();
+  }
+
+  function accName(u) {
+    var em = state.contacts[u];
+    return h("span", { class: "who2" }, h("b", {}, u + (state.accounts[u] === "admin" ? " · pide ser administrador" : "")), h("small", {}, em || "Sin mail registrado"));
+  }
+
+  function renderAccounts() {
+    var box = $("accounts"); box.hidden = !state.admin;
+    if (!state.admin) return;
+    var body = $("accbody"); body.textContent = "";
+    var names = Object.keys(state.accounts).sort();
+    var pending = names.filter(function (u) { return !state.approved[u]; });
+    var ok = names.filter(function (u) { return state.approved[u]; });
+    body.appendChild(h("div", { class: "label" }, "Pendientes (" + pending.length + ")"));
+    if (!pending.length) body.appendChild(h("p", { class: "hint" }, "No hay solicitudes pendientes."));
+    pending.forEach(function (u) {
+      body.appendChild(h("div", { class: "accrow" }, accName(u), h("span", { class: "row" },
+        h("button", { class: "btn sm primary", onclick: function () { approve(u); } }, "Aprobar"),
+        h("button", { class: "btn sm danger", onclick: function () { removeAccount(u); } }, "Rechazar"))));
+    });
+    body.appendChild(h("div", { class: "label" }, "Con acceso (" + ok.length + ")"));
+    if (!ok.length) body.appendChild(h("p", { class: "hint" }, "Todavía no aprobaste ninguna cuenta."));
+    ok.forEach(function (u) {
+      var act = state.confirmAcc === u
+        ? h("span", { class: "row" },
+            h("button", { class: "btn sm danger", onclick: function () { removeAccount(u); } }, "Sí, quitar"),
+            h("button", { class: "btn sm", onclick: function () { state.confirmAcc = null; renderAccounts(); } }, "No"))
+        : h("button", { class: "btn sm", onclick: function () { state.confirmAcc = u; renderAccounts(); } }, "Quitar acceso");
+      body.appendChild(h("div", { class: "accrow" }, accName(u), act));
+    });
+  }
+
+  // ---- cuentas ----
+  function openAuth(mode) { state.authMode = mode; state.showAuth = true; $("autherr").textContent = ""; render(); $("authemail").focus(); }
+  function closeAuth() { state.showAuth = false; $("autherr").textContent = ""; render(); }
+  function logout() {
+    stopData(); clearReminders(); writeSession(null);
+    state.session = null; state.role = null; state.uid = null; state.canEdit = false; state.isOwner = false; state.canWrite = null;
+    state.type = null; state.venue = null; state.editing = null; state.confirmDel = null; state.mineEdit = null;
+    applyRole(); toast("Cerraste sesión."); render();
+    if (state.auth) state.auth.signOut();
+  }
+
+  var MAIN_USER = "axel", MAIN_EMAIL = "axeljakobs1@gmail.com";
+
+  async function register(email, u, p, role) {
+    var cred;
+    try { cred = await state.auth.createUserWithEmailAndPassword(email, p); }
+    catch (e) {
+      if (e.code === "auth/email-already-in-use") throw new Error("Ese mail ya tiene una cuenta. Ingresá con él. Si te rechazaron, pedile al administrador.");
+      if (e.code === "auth/weak-password") throw new Error("La contraseña es muy débil. Usá al menos 6 caracteres.");
+      if (e.code === "auth/invalid-email") throw new Error("Escribí un mail válido.");
+      throw new Error("No se pudo crear la cuenta. Revisá tu conexión e intentá de nuevo.");
+    }
+    var uid = cred.user.uid;
+    try {
+      var taken = await state.db.doc("usernames/" + u).get();
+      if (taken.exists) throw new Error("Ese nombre de usuario ya existe. Elegí otro.");
+      var batch = state.db.batch();
+      batch.set(state.db.doc("usernames/" + u), { uid: uid });
+      batch.set(state.db.doc("users/" + uid), { username: u, email: email, wantRole: role === "admin" ? "admin" : "member", role: null, approved: false, created: new Date().toISOString() });
+      await batch.commit();
+    } catch (e) {
+      try { await cred.user.delete(); } catch (e2) {}
+      throw (e && e.message && !e.code) ? e : new Error("No se pudo crear la cuenta. Intentá de nuevo.");
+    }
+    var main = (u === MAIN_USER && email === MAIN_EMAIL);
+    if (main) { try { await cred.user.sendEmailVerification(); } catch (e) {} }
+    await state.auth.signOut();
+    return { main: main };
+  }
+
+  async function login(email, p, role) {
+    var cred;
+    try { cred = await state.auth.signInWithEmailAndPassword(email, p); }
+    catch (e) { throw new Error("Mail o contraseña incorrectos."); }
+    var uid = cred.user.uid;
+    var snap = await state.db.doc("users/" + uid).get(), d = snap.exists ? snap.data() : null;
+    if (!d) { await state.auth.signOut(); throw new Error("Esta cuenta no tiene acceso. Pedile al administrador que la apruebe."); }
+    if (!d.approved && d.username === MAIN_USER && email === MAIN_EMAIL) {
+      await cred.user.reload();
+      if (!cred.user.emailVerified) {
+        try { await cred.user.sendEmailVerification(); } catch (e) {}
+        await state.auth.signOut();
+        throw new Error("Verificá tu mail con el link que te enviamos y volvé a ingresar.");
+      }
+      await cred.user.getIdToken(true);
+      await state.db.doc("users/" + uid).update({ approved: true, role: "admin" });
+      d.approved = true; d.role = "admin";
+    }
+    if (!d.approved) { await state.auth.signOut(); throw new Error("Tu solicitud todavía no fue aprobada. Vas a poder ingresar cuando un administrador la apruebe."); }
+    if (role === "admin" && d.role !== "admin") { await state.auth.signOut(); throw new Error("Tu cuenta fue aprobada como colaborador, no como administrador. Ingresá como colaborador."); }
+    return { uid: uid, d: d };
+  }
+
+  async function submitAuth(ev) {
+    ev.preventDefault();
+    var err = $("autherr"), email = $("authemail").value.trim().toLowerCase(), u = $("authuser").value.trim().toLowerCase(), p = $("authpass").value, reg = state.authMode === "register";
+    var role = state.authRole;
+    err.textContent = ""; err.className = "err";
+    if (!state.db) { err.textContent = state.dbIssue || "Todavía se está conectando con la base de datos. Probá de nuevo en unos segundos."; return; }
+    if (!role) { err.textContent = "Elegí si ingresás como administrador o como colaborador."; return; }
+    if (!EMAIL_RE.test(email)) { err.textContent = "Escribí un mail válido."; return; }
+    if (reg && !USER_RE.test(u)) { err.textContent = "El nombre de usuario debe tener de 3 a 20 caracteres: minúsculas, números, guion o guion bajo."; return; }
+    if (p.length < 6) { err.textContent = "La contraseña debe tener al menos 6 caracteres."; return; }
+    if (reg && p !== $("authpass2").value) { err.textContent = "Las contraseñas no coinciden."; return; }
+    $("authgo").disabled = true;
+    try {
+      state.authBusy = true;
+      if (reg) {
+        var res = await register(email, u, p, role);
+        $("authpass").value = ""; $("authpass2").value = "";
+        state.authMode = "login"; renderAuth();
+        err.className = "hint";
+        err.textContent = res.main
+          ? "Cuenta creada. Te mandamos un mail a " + email + " para verificarlo: abrí el link y después ingresá. Vas a quedar como administrador principal."
+          : "Listo: enviaste la solicitud para \"" + u + "\". Vas a poder ingresar con tu mail cuando un administrador la apruebe.";
+        state.authBusy = false; $("authgo").disabled = false;
+        return;
+      }
+      var r = await login(email, p, role);
+      state.showAuth = false; state.type = null; state.venue = null; state.mineEdit = null;
+      $("authpass").value = ""; $("authpass2").value = "";
+      state.authBusy = false;
+      enterSession(r.uid, r.d, role);
+      toast("Hola de nuevo, " + r.d.username + ".");
+    } catch (e) {
+      state.authBusy = false;
+      err.textContent = (e && e.message && !e.code) ? e.message : "No se pudo completar. Revisá tu conexión e intentá de nuevo.";
+    }
+    $("authgo").disabled = false;
+  }
+
+  // ---- anotarse ----
+  async function toggle(s) {
+    if (!state.session || !state.uid || state.busy) return;
+    var me = state.session;
+    var mydoc = state.signupDocs[state.uid] || {};
+    var by = Object.assign({}, mydoc.byUser || {});
+    var cur = new Set(Array.isArray(by[me]) ? by[me] : []);
+    var att = attendees();
+    var isMine = (att[s.id] || []).some(function (a) { return a.username === me; });
+    if (isMine) {
+      if (!cur.has(s.id)) { toast("Te anotaste desde otra cuenta de Claude. Salí del turno desde esa cuenta."); return; }
+      cur.delete(s.id);
+    } else {
+      if (takenCount(s, att) >= s.cap) { toast("Ese turno se completó recién."); return; }
+      cur.add(s.id);
+    }
+    by[me] = Array.from(cur);
+    state.busy = true; renderDays();
+    try {
+      await state.db.doc("signups/" + state.uid).set({ byUser: by });
+      toast(cur.has(s.id) ? "Quedaste anotado." : "Saliste del turno.");
+    } catch (e) { toast("No se pudo guardar. Probá de nuevo."); }
+    state.busy = false; renderDays();
+  }
+
+  async function removeAttendee(s, a) {
+    var doc = state.signupDocs[a.uid] || {}, by = Object.assign({}, doc.byUser || {});
+    by[a.username] = (Array.isArray(by[a.username]) ? by[a.username] : []).filter(function (x) { return x !== s.id; });
+    try { await state.db.doc("signups/" + a.uid).set({ byUser: by }); toast("Quitaste a " + a.username + " del turno."); }
+    catch (e) { toast("No se pudo quitar a esa persona."); }
+  }
+
+  // ---- configuración de turnos (administrador) ----
+  async function removeSlot(s) {
+    state.confirmDel = null;
+    try { await state.db.doc("slots/" + s.id).delete(); toast("Turno borrado."); }
+    catch (e) { toast("No se pudo borrar el turno."); }
+  }
+
+  function slotId(type, venue, date, start, end) { return type + "_" + venue + "_" + date + "_" + start.replace(":", "") + "_" + end.replace(":", ""); }
+  function sameSlot(type, venue, date, start, end, skipId) {
+    return state.slots.some(function (s) { return s.id !== skipId && s.type === type && s.venue === venue && s.date === date && s.start === start && s.end === end; });
+  }
+  function newId(type, venue, date, start, end) {
+    var id = slotId(type, venue, date, start, end);
+    if (state.slots.some(function (s) { return s.id === id; })) id += "_" + Math.random().toString(36).slice(2, 6);
+    return id;
+  }
+
+  async function saveEdit() {
+    var e = state.editing; if (!e) return;
+    var s = state.slots.filter(function (x) { return x.id === e.id; })[0];
+    if (!s) { state.editing = null; render(); return; }
+    var cap = parseInt(e.cap, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date) || !e.start || !e.end) return toast("Completá la fecha y los dos horarios.");
+    if (e.start === e.end) return toast("El inicio y el fin no pueden ser iguales.");
+    if (!cap || cap < 1) return toast("El cupo tiene que ser de al menos 1.");
+    cap = Math.min(200, cap);
+    if (sameSlot(s.type, s.venue, e.date, e.start, e.end, s.id)) return toast("Ya hay un turno con ese día y horario en esta sede.");
+    var taken = takenCount(s, attendees());
+    var inWeek = e.date >= iso(state.week) && e.date <= iso(addDays(state.week, 6));
+    try {
+      await state.db.doc("slots/" + s.id).update({ date: e.date, start: e.start, end: e.end, cap: cap });
+      state.editing = null;
+      toast(cap < taken ? "Turno guardado. El cupo es menor que los anotados; no se quitó a nadie." : "Turno guardado. Los anotados se mantienen." + (inWeek ? "" : " Ahora está en otra semana."));
+      render();
+    } catch (err) { toast("No se pudo guardar el turno."); }
+  }
+
+  var rowSeq = 0;
+  function buildRow(start, end, cap) {
+    var n = ++rowSeq;
+    var del = h("button", { class: "btn sm", type: "button", "aria-label": "Quitar este horario", onclick: function () { row.remove(); syncRows(); } }, "Quitar");
+    var row = h("div", { class: "trow" }, h("div", { class: "row" },
+      h("div", { class: "field" }, h("label", { class: "label", for: "ts" + n }, "Desde"), h("input", { type: "time", id: "ts" + n, "data-k": "start", value: start })),
+      h("div", { class: "field" }, h("label", { class: "label", for: "te" + n }, "Hasta"), h("input", { type: "time", id: "te" + n, "data-k": "end", value: end })),
+      h("div", { class: "field" }, h("label", { class: "label", for: "tc" + n }, "Cupo"), h("input", { type: "number", id: "tc" + n, "data-k": "cap", min: "1", max: "200", value: String(cap) })),
+      del));
+    return row;
+  }
+  function syncRows() {
+    var rows = $("trows").querySelectorAll(".trow");
+    rows.forEach(function (r) { r.querySelector("button").hidden = rows.length < 2; });
+  }
+
+  async function addSlots() {
+    if (!state.admin || !isFixture() || !state.venue) return;
+    var picked = [];
+    $("dayspick").querySelectorAll("input").forEach(function (c, i) { if (c.checked) picked.push(i); });
+    if (!picked.length) return toast("Elegí al menos un día.");
+    var ranges = [];
+    var ok = true;
+    $("trows").querySelectorAll(".trow").forEach(function (r) {
+      var start = r.querySelector('[data-k="start"]').value, end = r.querySelector('[data-k="end"]').value, cap = parseInt(r.querySelector('[data-k="cap"]').value, 10);
+      if (!start || !end || end === start || !cap || cap < 1) ok = false; else ranges.push({ start: start, end: end, cap: Math.min(200, cap) });
+    });
+    if (!ok || !ranges.length) return toast("Revisá los horarios: el inicio y el fin no pueden ser iguales y el cupo tiene que ser de al menos 1.");
+    $("addslots").disabled = true;
+    var made = 0, skipped = 0, type = state.type, venue = state.venue;
+    try {
+      for (var k = 0; k < picked.length; k++) {
+        for (var j = 0; j < ranges.length; j++) {
+          var r = ranges[j], date = iso(addDays(state.week, picked[k]));
+          if (sameSlot(type, venue, date, r.start, r.end)) { skipped++; continue; }
+          var id = newId(type, venue, date, r.start, r.end);
+          await state.db.doc("slots/" + id).set({ type: type, venue: venue, date: date, start: r.start, end: r.end, cap: r.cap, manual: [] });
+          state.slots.push({ id: id, type: type, venue: venue, date: date, start: r.start, end: r.end, cap: r.cap, manual: [] });
+          made++;
+        }
+      }
+      toast(made + (made === 1 ? " turno agregado" : " turnos agregados") + (skipped ? " (" + skipped + " ya existían)." : "."));
+    } catch (e) { toast("No se pudieron agregar todos los turnos."); }
+    $("addslots").disabled = false;
+    renderDays();
+  }
+
+  async function copyWeek() {
+    if (!state.admin || !isFixture() || !state.venue) return;
+    var from = iso(state.week), to = iso(addDays(state.week, 6)), type = state.type, venue = state.venue;
+    var src = state.slots.filter(function (s) { return s.type === type && s.venue === venue && s.date >= from && s.date <= to; });
+    if (!src.length) return toast("Esta semana no tiene turnos para copiar.");
+    $("copyweek").disabled = true;
+    var made = 0;
+    try {
+      for (var k = 0; k < src.length; k++) {
+        var s = src[k], date = iso(addDays(parse(s.date), 7));
+        if (sameSlot(type, venue, date, s.start, s.end)) continue;
+        var id = newId(type, venue, date, s.start, s.end);
+        await state.db.doc("slots/" + id).set({ type: type, venue: venue, date: date, start: s.start, end: s.end, cap: s.cap, manual: [] });
+        state.slots.push({ id: id, type: type, venue: venue, date: date, start: s.start, end: s.end, cap: s.cap, manual: [] });
+        made++;
+      }
+      toast(made ? made + " turnos copiados a la semana siguiente (sin anotados)." : "La semana siguiente ya tenía esos turnos.");
+    } catch (e) { toast("No se pudo copiar toda la semana."); }
+    $("copyweek").disabled = false;
+    renderDays();
+  }
+
+  async function saveVenue() {
+    if (!state.admin || !state.venue) return;
+    var name = $("vname").value.trim(), address = $("vaddr").value.trim();
+    try { await state.db.doc("venues/" + state.venue).set({ name: name, address: address }); toast("Sede guardada."); }
+    catch (e) { toast("No se pudo guardar la sede."); }
+  }
+
+  function buildDaysPick() {
+    var box = $("dayspick");
+    for (var i = 0; i < 7; i++) {
+      var inp = h("input", { type: "checkbox", id: "dp" + i });
+      if (i < 5) inp.checked = true;
+      box.appendChild(h("label", { for: "dp" + i }, inp, h("span", { class: "dl" }, DOW[i])));
+    }
+  }
+
+  $("prev").onclick = function () { state.week = addDays(state.week, -7); state.confirmDel = null; render(); };
+  $("next").onclick = function () { state.week = addDays(state.week, 7); state.confirmDel = null; render(); };
+  $("today").onclick = function () { state.week = monday(new Date()); render(); };
+  $("addslots").onclick = addSlots;
+  $("copyweek").onclick = copyWeek;
+  $("savevenue").onclick = saveVenue;
+  $("addrow").onclick = function () { $("trows").appendChild(buildRow("20:00", "21:00", 10)); syncRows(); };
+  $("authbox").addEventListener("submit", submitAuth);
+  $("authswitch").onclick = function () { state.authMode = state.authMode === "login" ? "register" : "login"; $("autherr").textContent = ""; renderAuth(); };
+  $("authclose").onclick = closeAuth;
+  $("radd").onclick = addRoster;
+  $("saverates").onclick = saveRates;
+  $("liqprev").onclick = function () { var m = liqRange(), d = new Date(m.y, m.m - 1, 1); state.liqMonth = { y: d.getFullYear(), m: d.getMonth() }; renderLiq(); };
+  $("liqnext").onclick = function () { var m = liqRange(), d = new Date(m.y, m.m + 1, 1); state.liqMonth = { y: d.getFullYear(), m: d.getMonth() }; renderLiq(); };
+  $("liqrefresh").onclick = loadLiq;
+  $("sedeprev").onclick = function () { var m = sedeRange(), d = new Date(m.y, m.m - 1, 1); state.sedeMonth = { y: d.getFullYear(), m: d.getMonth() }; renderSedes(); };
+  $("sedenext").onclick = function () { var m = sedeRange(), d = new Date(m.y, m.m + 1, 1); state.sedeMonth = { y: d.getFullYear(), m: d.getMonth() }; renderSedes(); };
+  $("sederefresh").onclick = loadLiq;
+  $("sedepanel").addEventListener("toggle", function () { if ($("sedepanel").open && !state.liqLoaded && !state.liqBusy) loadLiq(); });
+  $("liqpanel").addEventListener("toggle", function () { if ($("liqpanel").open && !state.liqLoaded && !state.liqBusy) loadLiq(); });
+  $("rname-new").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); addRoster(); } });
+  document.querySelectorAll('input[name="role"]').forEach(function (r) {
+    r.addEventListener("change", function () { state.authRole = r.value; $("autherr").textContent = ""; renderAuth(); });
+  });
+  buildDaysPick();
+  $("trows").appendChild(buildRow("19:00", "20:00", 10)); syncRows();
+  render();
+
+  // ---- datos en tiempo real (Firestore) ----
+  var unsubs = [], remTimer = null;
+  function onErrData() { state.unreachable = true; renderNotices(); }
+  function listen(q, cb) { unsubs.push(q.onSnapshot(cb, onErrData)); }
+  function stopData() {
+    unsubs.forEach(function (f) { try { f(); } catch (e) {} }); unsubs = [];
+    state.loaded = false; state.slots = []; state.signupDocs = {}; state.reportMap = {};
+    state.accounts = {}; state.approved = {}; state.contacts = {}; state.userByName = {};
+    state.accountsLoaded = false; state.approvedLoaded = false; state.liqLoaded = false; state.liqEntries = {};
+  }
+
+  // ---- recordatorios: 21:00 del día anterior a cada turno (solo en la app instalada) ----
+  function reminderPlugin() { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications; }
+  async function clearReminders() {
+    var LN = reminderPlugin(); if (!LN) return;
+    try { var p = await LN.getPending(); if (p.notifications && p.notifications.length) await LN.cancel({ notifications: p.notifications }); } catch (e) {}
+  }
+  function syncReminders() {
+    clearTimeout(remTimer);
+    remTimer = setTimeout(async function () {
+      var LN = reminderPlugin();
+      if (!LN || !state.loaded || !state.session) return;
+      try {
+        var perm = await LN.checkPermissions();
+        if (perm.display !== "granted") perm = await LN.requestPermissions();
+        if (perm.display !== "granted") return;
+        await clearReminders();
+        var now = new Date(), byDay = {};
+        mySlots().forEach(function (s) { if (endDate(s) >= now) (byDay[s.date] = byDay[s.date] || []).push(s); });
+        var list = [];
+        Object.keys(byDay).sort().forEach(function (date) {
+          var p = date.split("-").map(Number), at = new Date(p[0], p[1] - 1, p[2] - 1, 21, 0, 0);
+          if (at <= now) return;
+          var items = byDay[date].sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
+          list.push({
+            id: Number(date.replace(/-/g, "")),
+            title: items.length === 1 ? "Mañana tenés un turno" : "Mañana tenés " + items.length + " turnos",
+            body: items.map(function (s) { return s.start + " – " + s.end + " · " + typeTitle(s.type) + " · " + venueName(s.venue); }).join("\n"),
+            schedule: { at: at, allowWhileIdle: true }
+          });
+        });
+        if (list.length) await LN.schedule({ notifications: list });
+      } catch (e) {}
+    }, 800);
+  }
+
+  // ---- avisos push en el navegador / PWA (los manda un servidor a las 21:00) ----
+  function isNative() { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+  function pushCanAsk() {
+    return !!(state.session && state.uid && !isNative() && "Notification" in window && "serviceWorker" in navigator && window.FIREBASE_VAPID_KEY && Notification.permission === "default");
+  }
+  async function enablePush() {
+    try {
+      if (!(firebase.messaging && firebase.messaging.isSupported && firebase.messaging.isSupported())) { toast("Este navegador no permite avisos. En iPhone, agregá primero la app a la pantalla de inicio."); return; }
+      var perm = await Notification.requestPermission();
+      if (perm !== "granted") { renderNotices(); toast("No se activaron los avisos."); return; }
+      var reg = state.swReg || await navigator.serviceWorker.ready;
+      var token = await firebase.messaging().getToken({ vapidKey: window.FIREBASE_VAPID_KEY, serviceWorkerRegistration: reg });
+      if (!token) { toast("No se pudo activar los avisos."); return; }
+      await state.db.doc("devices/" + state.uid).set({ tokens: firebase.firestore.FieldValue.arrayUnion(token), updated: new Date().toISOString() }, { merge: true });
+      renderNotices(); toast("Listo: te vamos a avisar a las 21:00 la noche anterior a cada turno.");
+    } catch (e) { toast("No se pudo activar los avisos."); }
+  }
+  // si ya había dado permiso, mantiene el token vigente
+  async function refreshPushToken() {
+    try {
+      if (isNative() || !("Notification" in window) || Notification.permission !== "granted" || !window.FIREBASE_VAPID_KEY || !(firebase.messaging && firebase.messaging.isSupported())) return;
+      var reg = state.swReg || await navigator.serviceWorker.ready;
+      var token = await firebase.messaging().getToken({ vapidKey: window.FIREBASE_VAPID_KEY, serviceWorkerRegistration: reg });
+      if (token) await state.db.doc("devices/" + state.uid).set({ tokens: firebase.firestore.FieldValue.arrayUnion(token), updated: new Date().toISOString() }, { merge: true });
+    } catch (e) {}
+  }
+
+  function startData() {
+    stopData();
+    var db = state.db;
+    if (state.canEdit) {
+      listen(db.collection("users"), function (snap) {
+        var acc = {}, ap = {}, ct = {}, ids = {};
+        snap.docs.forEach(function (d) {
+          var x = d.data() || {}; if (!x.username) return;
+          acc[x.username] = x.wantRole === "admin" ? "admin" : "member";
+          if (x.approved) ap[x.username] = 1;
+          ct[x.username] = x.email || ""; ids[x.username] = d.id;
+        });
+        state.accounts = acc; state.approved = ap; state.contacts = ct; state.userByName = ids;
+        state.accountsLoaded = true; state.approvedLoaded = true; renderAccounts(); renderNotices();
+      });
+    }
+    listen(db.collection("reports/" + state.uid + "/entries"), function (snap) {
+      var m = {};
+      snap.docs.forEach(function (d) {
+        var x = d.data() || {};
+        m[d.id] = { id: d.id, username: x.username, slotId: x.slotId, start: x.start || "", end: x.end || "", expense: Number(x.expense) || 0, comment: x.comment || "", hasPhoto: !!x.hasPhoto };
+      });
+      state.reportMap = m; renderMine();
+    });
+    listen(db.collection("rates"), function (snap) {
+      var m = {}; snap.docs.forEach(function (d) { m[d.id] = Number((d.data() || {}).rate) || 0; });
+      state.rates = m; renderRates(); render();
+      if (snap.empty && state.canEdit && !state.seededR) {
+        state.seededR = true;
+        [["viernes", 0], ["rutina", 6070], ["extrarutina", 0], ["especiales", 12500]].forEach(function (r) { db.doc("rates/" + r[0]).set({ rate: r[1] }).catch(function () {}); });
+      }
+    });
+    listen(db.collection("roster"), function (snap) {
+      var m = {}; snap.docs.forEach(function (d) { m[d.id] = d.data() || {}; });
+      state.roster = m; renderRoster(); renderDays();
+    });
+    listen(db.collection("venues"), function (snap) {
+      var v = {}; snap.docs.forEach(function (d) { v[d.id] = d.data() || {}; });
+      state.venues = v; state.adminVenueShown = null; render();
+      if (snap.empty && state.canEdit && !state.seededV) {
+        state.seededV = true;
+        [["s1", "Corrientes"], ["s2", "España"], ["s3", "Tucumán"], ["s4", "Las Cañas"]].forEach(function (x) { db.doc("venues/" + x[0]).set({ name: x[1], address: "" }).catch(function () {}); });
+      }
+    });
+    var timer = setTimeout(function () { state.unreachable = true; renderNotices(); }, 10000);
+    listen(db.collection("slots"), function (snap) {
+      state.slots = snap.docs.map(function (d) {
+        var x = d.data() || {};
+        return { id: d.id, type: x.type || "rutina", venue: x.venue, date: x.date, start: x.start, end: x.end, cap: Number(x.cap) || 1, manual: Array.isArray(x.manual) ? x.manual : [] };
+      });
+      if (!snap.metadata.fromCache) { clearTimeout(timer); state.unreachable = false; }
+      state.loaded = true; render(); syncReminders();
+    });
+    listen(db.collection("signups"), function (snap) {
+      var m = {}; snap.docs.forEach(function (d) { m[d.id] = d.data() || {}; });
+      state.signupDocs = m; renderDays(); renderMine(); if (!state.type) renderStage(); syncReminders();
+    });
+  }
+
+  function enterSession(uid, d, role) {
+    var isAdm = d.role === "admin";
+    state.uid = uid; state.session = d.username; state.role = (role === "admin" && isAdm) ? "admin" : "member";
+    state.canEdit = isAdm; state.canWrite = true;
+    state.isOwner = isAdm && String(d.email || "").toLowerCase() === MAIN_EMAIL;
+    writeSession({ u: d.username, r: state.role });
+    applyRole(); startData(); renderNotices(); render(); refreshPushToken();
+  }
+
+  if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) navigator.serviceWorker.register("sw.js").then(function (r) { state.swReg = r; }).catch(function () {});
+  (function init() {
+    var cfg = window.FIREBASE_CONFIG;
+    if (!window.firebase || !cfg || !cfg.apiKey || /PEGAR/.test(cfg.apiKey)) {
+      state.dbIssue = "Falta configurar Firebase: completá www/firebase-config.js (ver LEEME.md).";
+      state.authReady = true; render(); return;
+    }
+    firebase.initializeApp(cfg);
+    state.auth = firebase.auth(); state.db = firebase.firestore();
+    state.auth.onAuthStateChanged(async function (user) {
+      if (state.authBusy) return;
+      if (!user) { state.authReady = true; render(); return; }
+      try {
+        var snap = await state.db.doc("users/" + user.uid).get(), d = snap.exists ? snap.data() : null;
+        state.authReady = true;
+        if (d && d.approved) { var sv = readSession(); enterSession(user.uid, d, sv && sv.r === "admin" ? "admin" : "member"); }
+        else { await state.auth.signOut(); render(); }
+      } catch (e) { state.authReady = true; state.unreachable = true; renderNotices(); render(); }
+    });
+  })();
+})();
+</script>

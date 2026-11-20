@@ -1,0 +1,8 @@
+{
+  "appId": "ar.turnos.canchas",
+  "appName": "Turnos Canchas",
+  "webDir": "www",
+  "plugins": {
+    "LocalNotifications": { "smallIcon": "ic_stat_icon", "iconColor": "#1B7F4B" }
+  }
+}
