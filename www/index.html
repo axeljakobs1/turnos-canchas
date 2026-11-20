@@ -376,6 +376,15 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
 <script>
 (function () {
   var SEDES = ["s1", "s2", "s3", "s4"];
+  // Días de la semana disponibles (0 = lunes ... 6 = domingo). Lo que no figura acá admite todos los días.
+  var DIAS_PERMITIDOS = {
+    viernes: { "*": [4] },
+    rutina: { s1: [0, 1, 2, 3, 4], s2: [5], s3: [4, 5] }   // Corrientes: lun a vie · España: sábados · Tucumán: vie y sáb · Las Cañas: todos
+  };
+  function allowedDays(type, venue) {
+    var t = DIAS_PERMITIDOS[type]; if (!t) return null;
+    return t[venue] || t["*"] || null;
+  }
   // El fixture viernes no se hace en Corrientes (s1).
   var SEDES_SIN = { viernes: ["s1"] };
   function sedesFor(type) { return SEDES.filter(function (id) { return (SEDES_SIN[type] || []).indexOf(id) === -1; }); }
@@ -812,7 +821,8 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
       var d = addDays(state.week, i), key = iso(d);
       var slots = state.slots.filter(function (s) { return s.type === state.type && s.venue === state.venue && s.date === key; })
         .sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : a.end < b.end ? -1 : 1; });
-      if (state.type === "viernes" && i !== 4 && !slots.length) continue;
+      var okDays = allowedDays(state.type, state.venue);
+      if (okDays && okDays.indexOf(i) === -1 && !slots.length) continue;
       var wrap = h("div", { class: "slots" });
       if (!slots.length) wrap.appendChild(h("div", { class: "none" }, "Sin turnos"));
       slots.forEach(function (s) { wrap.appendChild(slotCard(s, att)); });
@@ -829,14 +839,15 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
     syncDaysPick();
   }
 
-  // En "Fixture viernes" solo se puede elegir el viernes; en los demás fixtures, lunes a viernes quedan tildados por defecto.
+  // El selector de días del administrador solo ofrece los días permitidos para ese fixture y sede (viernes, rutina por sede);
+  // en el resto, lunes a viernes quedan tildados por defecto.
   function syncDaysPick() {
-    var onlyFri = state.type === "viernes", boxes = $("dayspick").querySelectorAll("label");
-    if (state.dpMode === (onlyFri ? "fri" : "all")) return;
-    state.dpMode = onlyFri ? "fri" : "all";
-    boxes.forEach(function (lb, i) {
-      lb.hidden = onlyFri && i !== 4;
-      lb.querySelector("input").checked = onlyFri ? i === 4 : i < 5;
+    var ok = allowedDays(state.type, state.venue), mode = state.type + "|" + state.venue;
+    if (state.dpMode === mode) return;
+    state.dpMode = mode;
+    $("dayspick").querySelectorAll("label").forEach(function (lb, i) {
+      lb.hidden = !!ok && ok.indexOf(i) === -1;
+      lb.querySelector("input").checked = ok ? ok.indexOf(i) !== -1 : i < 5;
     });
   }
 
@@ -1635,7 +1646,7 @@ img.receipt { display: block; max-width: 100%; max-height: 320px; border: 1.5px 
   async function addSlots() {
     if (!state.admin || !isFixture() || !state.venue) return;
     var picked = [];
-    $("dayspick").querySelectorAll("input").forEach(function (c, i) { if (c.checked && (state.type !== "viernes" || i === 4)) picked.push(i); });
+    $("dayspick").querySelectorAll("input").forEach(function (c, i) { if (c.checked && (!allowedDays(state.type, state.venue) || allowedDays(state.type, state.venue).indexOf(i) !== -1)) picked.push(i); });
     if (!picked.length) return toast("Elegí al menos un día.");
     var ranges = [];
     var ok = true;
